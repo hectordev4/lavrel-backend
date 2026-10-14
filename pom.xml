@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.yourapp</groupId>
+    <groupId>com.lavrel</groupId>
     <artifactId>achievement-tracker</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>achievement-tracker</name>
