@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: lavrel-backend
+  profiles:
+    active: stubs
+  config:
+    # Reads DB_URL, DB_USER, DB_PASSWORD from a .env file in the project root (plain KEY=value lines)
+    import: optional:file:.env[.properties]
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate        # Flyway owns the schema; Hibernate only checks it
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+
+app:
+  stats:
+    min-country-sample: 20
+  firebase:
+    credentials-path: ${FIREBASE_CREDENTIALS_PATH}
