@@ -42,6 +42,10 @@
             <artifactId>firebase-admin</artifactId>
             <version>${firebase-admin.version}</version>
         </dependency>
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
 
         <!-- HTTP client for the Steam/Xbox/PSN adapters (RestClient; replaces webflux, no Netty needed) -->
         <dependency>

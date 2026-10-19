@@ -1,6 +1,7 @@
 package com.lavrel.shared.error;
 
 import com.lavrel.library.domain.ProfilePrivateException;
+import com.lavrel.shared.domain.PlatformUnavailableException;
 import com.lavrel.user.domain.AccountAlreadyLinkedException;
 import com.lavrel.user.domain.CountryNotFoundException;
 import com.lavrel.user.domain.InvalidIdentityProofException;
@@ -50,6 +51,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidIdentityProofException.class)
     public ResponseEntity<ApiError> invalidIdentityProof(InvalidIdentityProofException e) {
         return error(HttpStatus.BAD_REQUEST, "invalid_identity_proof", e.getMessage());
+    }
+
+    /** The detail stays in the server log; the client only learns that the platform failed. */
+    @ExceptionHandler(PlatformUnavailableException.class)
+    public ResponseEntity<ApiError> platformUnavailable(PlatformUnavailableException e) {
+        return error(HttpStatus.BAD_GATEWAY, "platform_unavailable",
+                "The game platform could not be reached. Try again in a moment.");
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

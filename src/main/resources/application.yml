@@ -31,3 +31,11 @@ app:
     min-country-sample: 20
   firebase:
     credentials-path: ${FIREBASE_CREDENTIALS_PATH}
+  steam:
+    api-key: ${STEAM_API_KEY}
+    state-secret: ${STEAM_STATE_SECRET}
+    callback-url: ${STEAM_CALLBACK_URL:http://localhost:8080/api/steam/callback}
+    frontend:
+      base-url: ${FRONTEND_BASE_URL:}
+    sync:
+      max-imports-per-sync: 40

@@ -32,6 +32,8 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/error").permitAll()
+                        // Steam sends the browser here without a token; the signed "state" identifies the user.
+                        .requestMatchers("/api/steam/callback").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint))
                 .addFilterBefore(new FirebaseAuthenticationFilter(authenticateUser, entryPoint),
