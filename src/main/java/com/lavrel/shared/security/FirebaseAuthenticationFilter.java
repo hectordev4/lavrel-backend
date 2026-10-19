@@ -24,6 +24,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *
  * Deliberately NOT a @Component: a Filter bean would also be registered in the servlet container
  * and run outside the security chain. SecurityConfig creates it and adds it to the chain.
+ *
+ * The client always gets the same generic 401; the real reason is written to the server log
+ * (never the token itself) so a rejected token can be diagnosed.
  */
 public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
 
@@ -43,7 +46,11 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain chain) throws ServletException, IOException {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
 
-        if (header != null && header.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
+        if (header == null) {
+            logger.debug("No Authorization header on " + request.getMethod() + " " + request.getRequestURI());
+        } else if (!header.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
+            logger.warn("Authorization header is present but does not start with 'Bearer '");
+        } else {
             String token = header.substring(BEARER_PREFIX.length()).trim();
             try {
                 AuthenticatedUser user = authenticateUser.authenticate(token);
@@ -52,12 +59,14 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
                         user, null, AuthorityUtils.NO_AUTHORITIES));
                 SecurityContextHolder.setContext(context);
             } catch (InvalidTokenException e) {
+                Throwable cause = e.getCause() != null ? e.getCause() : e;
+                logger.warn("Rejected Firebase ID token: " + cause.getMessage());
                 SecurityContextHolder.clearContext();
                 entryPoint.commence(request, response, new BadCredentialsException("Invalid token", e));
                 return;
             }
         }
-        // No header: continue unauthenticated; the rules in SecurityConfig decide if that is allowed.
+        // No usable token: continue unauthenticated; the rules in SecurityConfig decide if that is allowed.
         chain.doFilter(request, response);
     }
 }

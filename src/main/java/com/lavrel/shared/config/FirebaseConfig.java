@@ -1,5 +1,6 @@
 package com.lavrel.shared.config;
 
+import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
@@ -27,6 +28,9 @@ public class FirebaseConfig {
         try (InputStream serviceAccount = new FileInputStream(credentialsPath)) {
             FirebaseOptions options = FirebaseOptions.builder()
                     .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                    // Use the JDK's HTTP stack (not Apache HttpClient) to download Google's public keys.
+                    // Avoids the "Not in GZIP format" failure when fetching the key certificates.
+                    .setHttpTransport(new NetHttpTransport())
                     .build();
             return FirebaseApp.initializeApp(options);
         }
