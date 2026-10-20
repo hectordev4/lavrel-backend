@@ -28,4 +28,11 @@ public class GamePersistenceAdapter implements GameRepositoryPort {
     public Game save(Game game) {
         return GameMapper.toDomain(repository.save(GameMapper.toEntity(game)));
     }
+
+    /** The foreign keys are ON DELETE CASCADE, so mappings, achievements, owners, unlocks and details go too. */
+    @Override
+    @Transactional
+    public void delete(long id) {
+        repository.deleteById(id);
+    }
 }

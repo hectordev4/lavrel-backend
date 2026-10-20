@@ -9,10 +9,12 @@ public final class GameMapper {
     }
 
     public static Game toDomain(GameJpaEntity e) {
-        return new Game(e.getId(), e.getTitle(), e.getCoverImageUrl(), e.getCreatedAt());
+        return new Game(e.getId(), e.getTitle(), e.getCoverImageUrl(), e.getDescription(),
+                e.getStoreUrl(), e.getCreatedAt());
     }
 
     public static GameJpaEntity toEntity(Game d) {
-        return new GameJpaEntity(d.id(), d.title(), d.coverImageUrl(), d.createdAt());
+        return new GameJpaEntity(d.id(), d.title(), d.coverImageUrl(), d.description(),
+                d.storeUrl(), d.createdAt());
     }
 }

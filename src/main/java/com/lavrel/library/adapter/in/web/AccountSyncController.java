@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Starts a sync of one of the current user's platform accounts. The sync runs inside the request
  * for now (fine for the MVP); a long library may later be moved to a background job.
  * The ownership check lives in the use case: someone else's account returns 404.
+ * When gamesPending is above 0, the user can sync again to import the rest of the library.
  */
 @RestController
 @RequestMapping("/api/currentuser/accounts")
@@ -28,9 +29,10 @@ public class AccountSyncController {
     public SyncResponse sync(@AuthenticationPrincipal AuthenticatedUser user,
                              @PathVariable("accountId") long accountId) {
         SyncResult result = syncAccount.sync(user.userId(), accountId);
-        return new SyncResponse(result.gamesSynced(), result.gamesSkipped(), result.unlocksRecorded());
+        return new SyncResponse(result.gamesSynced(), result.gamesSkipped(), result.unlocksRecorded(),
+                result.gamesPending());
     }
 
-    public record SyncResponse(int gamesSynced, int gamesSkipped, int unlocksRecorded) {
+    public record SyncResponse(int gamesSynced, int gamesSkipped, int unlocksRecorded, int gamesPending) {
     }
 }

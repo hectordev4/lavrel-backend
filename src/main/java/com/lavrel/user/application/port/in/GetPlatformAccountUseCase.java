@@ -1,8 +1,9 @@
 package com.lavrel.user.application.port.in;
 
-import java.util.List;
 import com.lavrel.shared.domain.Platform;
 import com.lavrel.user.domain.PlatformAccountNotFoundException;
+import java.time.Instant;
+import java.util.List;
 
 /** Read access for other features (e.g. library). Returns a view, not the domain object. */
 public interface GetPlatformAccountUseCase {
@@ -12,6 +13,8 @@ public interface GetPlatformAccountUseCase {
 
     List<PlatformAccountView> getByUserId(long userId);
 
-    record PlatformAccountView(long id, long userId, Platform platform, String externalId) {
+    /** lastSyncedAt is null until the first sync. */
+    record PlatformAccountView(long id, long userId, Platform platform, String externalId, String displayName,
+                               Instant lastSyncedAt) {
     }
 }

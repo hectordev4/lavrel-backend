@@ -2,6 +2,8 @@ package com.lavrel.shared.security;
 
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,7 +26,14 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    AuthenticateUserUseCase authenticateUser,
-                                                   JsonAuthenticationEntryPoint entryPoint) throws Exception {
+                                                   JsonAuthenticationEntryPoint entryPoint,
+                                                   @Value("${app.admin.firebase-uids:}") List<String> adminUids)
+            throws Exception {
+        Set<String> admins = adminUids.stream()
+                .map(String::trim)
+                .filter(uid -> !uid.isEmpty())
+                .collect(Collectors.toSet());
+
         http
                 // Stateless token API: no cookies, no sessions, so CSRF protection does not apply.
                 .csrf(csrf -> csrf.disable())
@@ -34,9 +43,11 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/error").permitAll()
                         // Steam sends the browser here without a token; the signed "state" identifies the user.
                         .requestMatchers("/api/steam/callback").permitAll()
+                        // Only the Firebase UIDs listed in app.admin.firebase-uids (none by default).
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint))
-                .addFilterBefore(new FirebaseAuthenticationFilter(authenticateUser, entryPoint),
+                .addFilterBefore(new FirebaseAuthenticationFilter(authenticateUser, entryPoint, admins),
                         UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

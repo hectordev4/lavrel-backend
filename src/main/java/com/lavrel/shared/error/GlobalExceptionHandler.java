@@ -1,12 +1,15 @@
 package com.lavrel.shared.error;
 
+import com.lavrel.catalog.domain.GameNotFoundException;
 import com.lavrel.library.domain.ProfilePrivateException;
 import com.lavrel.shared.domain.PlatformUnavailableException;
 import com.lavrel.user.domain.AccountAlreadyLinkedException;
 import com.lavrel.user.domain.CountryNotFoundException;
 import com.lavrel.user.domain.InvalidIdentityProofException;
+import com.lavrel.user.domain.InvalidUsernameException;
 import com.lavrel.user.domain.PlatformAccountNotFoundException;
 import com.lavrel.user.domain.UserNotFoundException;
+import com.lavrel.user.domain.UsernameTakenException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -35,6 +38,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ApiError> userNotFound(UserNotFoundException e) {
         return error(HttpStatus.NOT_FOUND, "user_not_found", e.getMessage());
+    }
+
+    @ExceptionHandler(GameNotFoundException.class)
+    public ResponseEntity<ApiError> gameNotFound(GameNotFoundException e) {
+        return error(HttpStatus.NOT_FOUND, "game_not_found", e.getMessage());
+    }
+
+    @ExceptionHandler(InvalidUsernameException.class)
+    public ResponseEntity<ApiError> invalidUsername(InvalidUsernameException e) {
+        return error(HttpStatus.BAD_REQUEST, "invalid_username", e.getMessage());
+    }
+
+    @ExceptionHandler(UsernameTakenException.class)
+    public ResponseEntity<ApiError> usernameTaken(UsernameTakenException e) {
+        return error(HttpStatus.CONFLICT, "username_taken", e.getMessage());
     }
 
     @ExceptionHandler(CountryNotFoundException.class)

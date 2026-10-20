@@ -1,17 +1,20 @@
 package com.lavrel.user.application.service;
 
-import java.time.Clock;
-import java.util.Objects;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase;
 import com.lavrel.user.application.port.out.TokenVerifierPort;
 import com.lavrel.user.application.port.out.TokenVerifierPort.VerifiedToken;
 import com.lavrel.user.application.port.out.UserRepositoryPort;
 import com.lavrel.user.domain.User;
+import com.lavrel.user.domain.Usernames;
+import java.time.Clock;
+import java.util.Objects;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuthenticateUserService implements AuthenticateUserUseCase {
+
+    private static final int MAX_NAME_ATTEMPTS = 10;
 
     private final TokenVerifierPort tokenVerifier;
     private final UserRepositoryPort users;
@@ -33,7 +36,10 @@ public class AuthenticateUserService implements AuthenticateUserUseCase {
         return new AuthenticatedUser(user.id(), user.firebaseUid());
     }
 
-    /** Only writes when Firebase data actually changed, so normal requests do not hit the write path. */
+    /**
+     * Keeps the private Google data (e-mail, photo) up to date. Only writes when it changed. The public
+     * username is never touched here.
+     */
     private User refreshProfile(User user, VerifiedToken token) {
         if (Objects.equals(user.email(), token.email()) && Objects.equals(user.photoUrl(), token.photoUrl())) {
             return user;
@@ -41,18 +47,19 @@ public class AuthenticateUserService implements AuthenticateUserUseCase {
         return users.save(user.withProfile(user.username(), token.email(), token.photoUrl()));
     }
 
+    /** The public name is random on purpose: nothing from the Google account is shown to other people. */
     private User create(VerifiedToken token) {
-        return users.save(new User(null, token.uid(), deriveUsername(token), token.email(),
+        return users.save(new User(null, token.uid(), uniqueRandomUsername(), token.email(),
                 token.photoUrl(), null, clock.instant()));
     }
 
-    private static String deriveUsername(VerifiedToken token) {
-        if (token.name() != null && !token.name().isBlank()) {
-            return token.name();
+    private String uniqueRandomUsername() {
+        for (int attempt = 0; attempt < MAX_NAME_ATTEMPTS; attempt++) {
+            String candidate = Usernames.random();
+            if (!users.existsByUsername(candidate)) {
+                return candidate;
+            }
         }
-        if (token.email() != null && token.email().contains("@")) {
-            return token.email().substring(0, token.email().indexOf('@'));
-        }
-        return "player-" + token.uid().substring(0, Math.min(6, token.uid().length()));
+        throw new IllegalStateException("Could not find a free random username");
     }
 }

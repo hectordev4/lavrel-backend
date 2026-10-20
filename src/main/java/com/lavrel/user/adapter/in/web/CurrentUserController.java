@@ -1,8 +1,10 @@
 package com.lavrel.user.adapter.in.web;
 
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase.AuthenticatedUser;
-import com.lavrel.user.application.port.in.GetUserCountryUseCase;
+import com.lavrel.user.application.port.in.GetCurrentUserUseCase;
+import com.lavrel.user.application.port.in.GetCurrentUserUseCase.CurrentUserView;
 import com.lavrel.user.application.port.in.UpdateUserCountryUseCase;
+import com.lavrel.user.application.port.in.UpdateUsernameUseCase;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,20 +19,28 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/currentuser")
 public class CurrentUserController {
 
-    private final GetUserCountryUseCase getUserCountry;
+    private final GetCurrentUserUseCase getCurrentUser;
     private final UpdateUserCountryUseCase updateUserCountry;
+    private final UpdateUsernameUseCase updateUsername;
 
-    public CurrentUserController(GetUserCountryUseCase getUserCountry,
-                                 UpdateUserCountryUseCase updateUserCountry) {
-        this.getUserCountry = getUserCountry;
+    public CurrentUserController(GetCurrentUserUseCase getCurrentUser,
+                                 UpdateUserCountryUseCase updateUserCountry,
+                                 UpdateUsernameUseCase updateUsername) {
+        this.getCurrentUser = getCurrentUser;
         this.updateUserCountry = updateUserCountry;
+        this.updateUsername = updateUsername;
     }
 
-    /** countryId is null until the user picks a country (it is optional). */
+    /**
+     * The user's own profile. email and photoUrl (from the linked Google account) are private: they are only
+     * ever returned here, to the user themself. username is the public name, random until the user changes it.
+     * countryId is null until the user picks a country.
+     */
     @GetMapping
     public CurrentUserResponse getCurrentUser(@AuthenticationPrincipal AuthenticatedUser user) {
-        return new CurrentUserResponse(user.userId(), user.firebaseUid(),
-                getUserCountry.getCountryId(user.userId()));
+        CurrentUserView view = getCurrentUser.getCurrentUser(user.userId());
+        return new CurrentUserResponse(view.userId(), view.firebaseUid(), view.username(), view.email(),
+                view.photoUrl(), view.countryId());
     }
 
     /** Body {"countryId": 12} sets the country; {"countryId": null} (or {}) clears it. */
@@ -41,9 +51,24 @@ public class CurrentUserController {
         updateUserCountry.updateCountry(user.userId(), request.countryId());
     }
 
-    public record CurrentUserResponse(long userId, String firebaseUid, Integer countryId) {
+    /**
+     * Body {"username": "my_name"}: 3-20 letters, digits or underscore, unique ignoring case.
+     * The sign-up form of our own accounts calls this right after the account is created.
+     */
+    @PatchMapping("/username")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void updateUsername(@AuthenticationPrincipal AuthenticatedUser user,
+                               @RequestBody UpdateUsernameRequest request) {
+        updateUsername.updateUsername(user.userId(), request.username());
+    }
+
+    public record CurrentUserResponse(long userId, String firebaseUid, String username, String email,
+                                      String photoUrl, Integer countryId) {
     }
 
     public record UpdateCountryRequest(Integer countryId) {
+    }
+
+    public record UpdateUsernameRequest(String username) {
     }
 }

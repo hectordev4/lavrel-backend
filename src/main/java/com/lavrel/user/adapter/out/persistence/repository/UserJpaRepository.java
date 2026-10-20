@@ -1,16 +1,18 @@
 package com.lavrel.user.adapter.out.persistence.repository;
 
+import com.lavrel.user.adapter.out.persistence.entity.UserJpaEntity;
 import java.time.Instant;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import com.lavrel.user.adapter.out.persistence.entity.UserJpaEntity;
 
 public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
 
     Optional<UserJpaEntity> findByFirebaseUid(String firebaseUid);
+
+    boolean existsByUsernameIgnoreCase(String username);
 
     /** Race-safe first login: a concurrent insert of the same firebase_uid is silently ignored. */
     @Modifying

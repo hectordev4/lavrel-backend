@@ -8,6 +8,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Set;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,7 +21,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * Reads "Authorization: Bearer <Firebase ID token>", asks the user feature to authenticate it
  * (find or create the user) and stores the resulting AuthenticatedUser as the principal.
- * Controllers receive it with @AuthenticationPrincipal and only ever see IDs, never a token.
+ * Users whose Firebase UID is in app.admin.firebase-uids also get ROLE_ADMIN (for /api/admin/**).
+ * Controllers receive the principal with @AuthenticationPrincipal and only ever see IDs, never a token.
  *
  * Deliberately NOT a @Component: a Filter bean would also be registered in the servlet container
  * and run outside the security chain. SecurityConfig creates it and adds it to the chain.
@@ -34,11 +36,14 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
 
     private final AuthenticateUserUseCase authenticateUser;
     private final AuthenticationEntryPoint entryPoint;
+    private final Set<String> adminFirebaseUids;
 
     public FirebaseAuthenticationFilter(AuthenticateUserUseCase authenticateUser,
-                                        AuthenticationEntryPoint entryPoint) {
+                                        AuthenticationEntryPoint entryPoint,
+                                        Set<String> adminFirebaseUids) {
         this.authenticateUser = authenticateUser;
         this.entryPoint = entryPoint;
+        this.adminFirebaseUids = adminFirebaseUids;
     }
 
     @Override
@@ -55,8 +60,10 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
             try {
                 AuthenticatedUser user = authenticateUser.authenticate(token);
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
-                context.setAuthentication(new UsernamePasswordAuthenticationToken(
-                        user, null, AuthorityUtils.NO_AUTHORITIES));
+                context.setAuthentication(new UsernamePasswordAuthenticationToken(user, null,
+                        adminFirebaseUids.contains(user.firebaseUid())
+                                ? AuthorityUtils.createAuthorityList("ROLE_ADMIN")
+                                : AuthorityUtils.NO_AUTHORITIES));
                 SecurityContextHolder.setContext(context);
             } catch (InvalidTokenException e) {
                 Throwable cause = e.getCause() != null ? e.getCause() : e;

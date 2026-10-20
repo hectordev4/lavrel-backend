@@ -1,12 +1,12 @@
 package com.lavrel.user.application.service;
 
-import java.util.List;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import com.lavrel.user.application.port.in.GetPlatformAccountUseCase;
 import com.lavrel.user.application.port.out.PlatformAccountRepositoryPort;
 import com.lavrel.user.domain.PlatformAccount;
 import com.lavrel.user.domain.PlatformAccountNotFoundException;
+import java.util.List;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
@@ -31,6 +31,7 @@ public class GetPlatformAccountService implements GetPlatformAccountUseCase {
     }
 
     private static PlatformAccountView toView(PlatformAccount a) {
-        return new PlatformAccountView(a.id(), a.userId(), a.platform(), a.externalId());
+        return new PlatformAccountView(a.id(), a.userId(), a.platform(), a.externalId(), a.displayName(),
+                a.lastSyncedAt());
     }
 }

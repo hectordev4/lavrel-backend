@@ -3,6 +3,7 @@ package com.lavrel.user.adapter.in.web;
 import com.lavrel.shared.domain.Platform;
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase.AuthenticatedUser;
 import com.lavrel.user.application.port.in.GetPlatformAccountUseCase;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,10 +24,12 @@ public class CurrentUserAccountsController {
     @GetMapping
     public List<AccountResponse> listAccounts(@AuthenticationPrincipal AuthenticatedUser user) {
         return getPlatformAccounts.getByUserId(user.userId()).stream()
-                .map(a -> new AccountResponse(a.id(), a.platform(), a.externalId()))
+                .map(a -> new AccountResponse(a.id(), a.platform(), a.externalId(), a.displayName(), a.lastSyncedAt()))
                 .toList();
     }
 
-    public record AccountResponse(long id, Platform platform, String externalId) {
+    /** lastSyncedAt is null until the first sync. */
+    public record AccountResponse(long id, Platform platform, String externalId, String displayName,
+                                  Instant lastSyncedAt) {
     }
 }
