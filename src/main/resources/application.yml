@@ -1,6 +1,6 @@
 spring:
   application:
-    name: achievement-tracker
+    name: lavrel-backend
   config:
     # Reads the variables of a .env file in the project root (plain NAME=value lines)
     import: optional:file:.env[.properties]
@@ -42,12 +42,12 @@ app:
     min-country-sample: 20
   sync:
     # New games imported per account sync; the user syncs again to continue (gamesPending)
-    max-imports-per-sync: 40
+    max-imports-per-sync: 50
   catalog:
     content-filter: ${CATALOG_CONTENT_FILTER:standard}   # off | standard | strict
     sexual-tag-top-rank: 5          # Sexual Content / Nudity tags within the top N tags block a game...
     sexual-tag-weight-ratio: 0.6    # ...or with at least this share of the top tag's weight
     min-reviews: 50                 # bulk seeding only
     failure-retry-days: 30          # rejected apps are not asked about again for this long
-    import-delay-ms: 300            # pause between Steam calls (syncs, explicit lists, enrich, refresh)
+    import-delay-ms: 500            # pause between Steam calls (syncs, explicit lists, enrich, refresh)
     seed-delay-ms: 1000             # pause between Steam calls while walking the full Steam list
