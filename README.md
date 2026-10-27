@@ -1,4 +1,4 @@
-# Achievement Tracker — backend
+# Lavrel — Backend
 
 A Spring Boot backend for an **achievement tracker**: people sign in with Google or e-mail, link their game
 platform accounts, and see their games and achievements, with unlock percentages worldwide and per country.
