@@ -3,15 +3,13 @@ package com.lavrel.catalog.application.port.out;
 import com.lavrel.catalog.domain.GameMetadata.AgeRating;
 import com.lavrel.catalog.domain.GameMetadata.Creator;
 import com.lavrel.catalog.domain.GameMetadata.TagWeight;
-import com.lavrel.shared.domain.Platform;
+import com.lavrel.shared.domain.PlatformBound;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/** Implemented by the platform clients (SteamClient, XboxClient, PsnClient). */
-public interface PlatformCatalogPort {
-
-    Platform platform();
+/** Implemented by one catalog client per platform (SteamCatalogClient today; Xbox and PSN later). */
+public interface PlatformCatalogPort extends PlatformBound {
 
     /** The platform's full store page data for one game (one call per game). */
     Optional<PlatformGameInfo> fetchGameInfo(String platformGameId);

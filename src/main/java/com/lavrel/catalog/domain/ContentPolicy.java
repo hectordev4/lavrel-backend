@@ -2,8 +2,6 @@ package com.lavrel.catalog.domain;
 
 import com.lavrel.catalog.config.CatalogFilterProperties;
 import com.lavrel.catalog.domain.GameMetadata.TagWeight;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -33,57 +31,6 @@ public final class ContentPolicy {
                 .map(g -> g.trim().toLowerCase(Locale.ROOT))
                 .collect(Collectors.toUnmodifiableSet());
     }
-
-    // ---- Legacy API, kept so ImportSteamCatalogService compiles unchanged. -------------------------------
-    // Prefer injecting the ContentPolicy bean (built from app.catalog.filter.*) and calling evaluate(GameSignals).
-
-    /** @deprecated only OFF still matters: it disables the filter. STANDARD and STRICT both use the new rules. */
-    @Deprecated
-    public enum Level {
-        OFF, STANDARD, STRICT;
-
-        public static Level parse(String value) {
-            if (value == null || value.isBlank()) {
-                return STANDARD;
-            }
-            return switch (value.trim().toLowerCase(Locale.ROOT)) {
-                case "off" -> OFF;
-                case "standard" -> STANDARD;
-                default -> STRICT;
-            };
-        }
-    }
-
-    /** @deprecated title, description and ESRB rating are no longer used by the rules. */
-    @Deprecated
-    public record Signals(String title, String description, Collection<Integer> contentDescriptorIds,
-                          Collection<String> genres, List<TagWeight> tags, String esrbRating) {
-    }
-
-    /** @deprecated uses the built-in defaults, not app.catalog.filter.* */
-    @Deprecated
-    public ContentPolicy(Level level) {
-        this(CatalogFilterProperties.defaults(level != Level.OFF));
-    }
-
-    /** @deprecated the old top-rank and weight-ratio settings are ignored; the new thresholds apply. */
-    @Deprecated
-    public ContentPolicy(Level level, int ignoredSexualTagTopRank, double ignoredSexualTagWeightRatio) {
-        this(level);
-    }
-
-    /** @deprecated delegates to evaluate(GameSignals). */
-    @Deprecated
-    public Optional<String> rejectionReason(Signals signals) {
-        return evaluate(new GameSignals(0, null,
-                copyOf(signals.contentDescriptorIds()), signals.tags(), copyOf(signals.genres())));
-    }
-
-    private static <T> List<T> copyOf(Collection<T> values) {
-        return values == null ? List.of() : new ArrayList<>(values);
-    }
-
-    // ---------------------------------------------------------------------------------------------------------
 
     public Optional<String> evaluate(GameSignals game) {
         if (!rules.enabled()) {

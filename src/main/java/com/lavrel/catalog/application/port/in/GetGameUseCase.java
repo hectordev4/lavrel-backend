@@ -11,7 +11,7 @@ public interface GetGameUseCase {
     GameDetails getGame(long gameId);
 
     /**
-     * What the game page shows. This read model is also the shape of the API response.
+     * What the game page shows (the web adapter maps it to its own response).
      * features holds one boolean per feature the frontend can show or hide; allFeatures lists every Steam
      * category the game has, with its group (PLAYER_MODE, FEATURE, ACCESSIBILITY, CONTROLLER).
      * slug is the readable part of the page address: the frontend builds /games/{id}-{slug}; only the id matters.

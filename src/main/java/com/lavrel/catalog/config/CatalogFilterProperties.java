@@ -19,11 +19,11 @@ public record CatalogFilterProperties(
         @DefaultValue("5") int normalizationCount,
         @DefaultValue("0.20") double rejectShare,
         @DefaultValue("3") int rejectMaxRank,
-        // Layer 3: Visual Novel (3799), Match 3 (1665), Hentai / adult (9130, 6653). Not 3798 (Story Rich) or 1664 (Puzzle).
+        // Layer 3: Hentai / adult (9130, 6653). Visual Novel (3799) and Match 3 (1665) are allowed on purpose.
         @DefaultValue({"9130", "6653"}) Set<Long> excludedTagIds,
-        @DefaultValue({"Hentai"}) Set<String> excludedGenres) {
+        @DefaultValue("Hentai") Set<String> excludedGenres) {
 
-    /** Same values as the @DefaultValue annotations, for code that builds a policy outside Spring binding. */
+    /** Same values as the @DefaultValue annotations, for tests that build a policy without Spring. */
     public static CatalogFilterProperties defaults(boolean enabled) {
         return new CatalogFilterProperties(enabled, "game", Set.of(3), Set.of(4), 3,
                 Set.of(12095L, 6650L), 5, 0.20, 3,

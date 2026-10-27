@@ -97,4 +97,14 @@ public class SteamHttp {
     private static String read(InputStream body) throws IOException {
         return new String(body.readAllBytes(), StandardCharsets.UTF_8);
     }
+
+    /** Base address of Steam's Web API. */
+    static final String API = "https://api.steampowered.com";
+
+    /** @throws PlatformUnavailableException for any non-2xx answer */
+    static void requireOk(Response response) {
+        if (!response.ok()) {
+            throw new PlatformUnavailableException(Platform.STEAM, "unexpected HTTP status " + response.status());
+        }
+    }
 }

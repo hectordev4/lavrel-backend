@@ -1,8 +1,9 @@
 package com.lavrel.platform.adapter.out.steam;
 
 import com.lavrel.platform.adapter.out.steam.SteamHttp.Response;
+import com.lavrel.shared.domain.Platform;
 import com.lavrel.shared.domain.PlatformUnavailableException;
-import com.lavrel.user.application.port.out.SteamIdentityPort;
+import com.lavrel.user.application.port.out.PlatformIdentityPort;
 import com.lavrel.user.domain.InvalidIdentityProofException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -22,7 +23,7 @@ import org.springframework.util.MultiValueMap;
  * comes from Steam's endpoint, and it was issued for OUR callback URL.
  */
 @Component
-public class SteamOpenIdVerifier implements SteamIdentityPort {
+public class SteamOpenIdVerifier implements PlatformIdentityPort {
 
     private static final String OPENID_ENDPOINT = "https://steamcommunity.com/openid/login";
     private static final String OPENID_NS = "http://specs.openid.net/auth/2.0";
@@ -36,6 +37,11 @@ public class SteamOpenIdVerifier implements SteamIdentityPort {
                                @Value("${app.steam.callback-url}") String callbackUrl) {
         this.http = http;
         this.callbackUrl = callbackUrl;
+    }
+
+    @Override
+    public Platform platform() {
+        return Platform.STEAM;
     }
 
     @Override
@@ -54,7 +60,7 @@ public class SteamOpenIdVerifier implements SteamIdentityPort {
     }
 
     @Override
-    public SteamIdentity verifyOpenId(Map<String, String> params) {
+    public PlatformIdentity verify(Map<String, String> params) {
         require("id_res".equals(params.get("openid.mode")), "Unexpected OpenID response");
         require(OPENID_ENDPOINT.equals(params.get("openid.op_endpoint")), "The login did not come from Steam");
         String returnTo = params.get("openid.return_to");
@@ -76,7 +82,7 @@ public class SteamOpenIdVerifier implements SteamIdentityPort {
                 "Steam did not confirm the login");
 
         String steamId64 = claimedId.group(1);
-        return new SteamIdentity(steamId64, personaName(steamId64));
+        return new PlatformIdentity(steamId64, personaName(steamId64));
     }
 
     /** The display name is a nicety: a failure here must not block linking the account. */

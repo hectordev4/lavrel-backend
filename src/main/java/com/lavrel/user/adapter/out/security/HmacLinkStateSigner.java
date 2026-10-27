@@ -1,5 +1,6 @@
 package com.lavrel.user.adapter.out.security;
 
+import com.lavrel.shared.domain.Platform;
 import com.lavrel.user.application.port.out.LinkStateSignerPort;
 import com.lavrel.user.domain.InvalidIdentityProofException;
 import java.nio.charset.StandardCharsets;
@@ -14,8 +15,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * State format: "{userId}.{expiryEpochSeconds}.{HMAC-SHA256 signature}". Nobody without the
- * secret can forge a state for another user, and it stops working after the TTL (default 10 minutes).
+ * State format: "{userId}.{platform}.{expiryEpochSeconds}.{HMAC-SHA256 signature}". Nobody without the
+ * secret can forge a state for another user or move it to another platform's callback, and it stops working
+ * after the TTL (default 10 minutes). The app.steam.* keys still work as a fallback for app.link.*.
  */
 @Component
 public class HmacLinkStateSigner implements LinkStateSignerPort {
@@ -26,12 +28,12 @@ public class HmacLinkStateSigner implements LinkStateSignerPort {
     private final Duration ttl;
     private final Clock clock;
 
-    public HmacLinkStateSigner(@Value("${app.steam.state-secret}") String secret,
-                               @Value("${app.steam.state-ttl:PT10M}") Duration ttl,
+    public HmacLinkStateSigner(@Value("${app.link.state-secret:${app.steam.state-secret}}") String secret,
+                               @Value("${app.link.state-ttl:${app.steam.state-ttl:PT10M}}") Duration ttl,
                                Clock clock) {
         if (secret == null || secret.length() < 32) {
             throw new IllegalStateException(
-                    "app.steam.state-secret must be at least 32 characters. Generate one with: openssl rand -hex 32");
+                    "app.link.state-secret must be at least 32 characters. Generate one with: openssl rand -hex 32");
         }
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
         this.ttl = ttl;
@@ -39,28 +41,31 @@ public class HmacLinkStateSigner implements LinkStateSignerPort {
     }
 
     @Override
-    public String sign(long userId) {
+    public String sign(long userId, Platform platform) {
         long expiry = clock.instant().plus(ttl).getEpochSecond();
-        String payload = userId + "." + expiry;
+        String payload = userId + "." + platform.name() + "." + expiry;
         return payload + "." + signature(payload);
     }
 
     @Override
-    public long verify(String state) {
+    public long verify(String state, Platform platform) {
         if (state == null || state.isBlank()) {
             throw new InvalidIdentityProofException("Missing link state");
         }
         String[] parts = state.split("\\.");
-        if (parts.length != 3) {
+        if (parts.length != 4) {
             throw new InvalidIdentityProofException("Invalid link state");
         }
-        String expected = signature(parts[0] + "." + parts[1]);
-        if (!MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8), parts[2].getBytes(StandardCharsets.UTF_8))) {
+        String expected = signature(parts[0] + "." + parts[1] + "." + parts[2]);
+        if (!MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8), parts[3].getBytes(StandardCharsets.UTF_8))) {
             throw new InvalidIdentityProofException("Invalid link state");
+        }
+        if (!platform.name().equals(parts[1])) {
+            throw new InvalidIdentityProofException("The link state was issued for another platform");
         }
         try {
-            if (clock.instant().getEpochSecond() > Long.parseLong(parts[1])) {
-                throw new InvalidIdentityProofException("The Steam link request expired. Start again.");
+            if (clock.instant().getEpochSecond() > Long.parseLong(parts[2])) {
+                throw new InvalidIdentityProofException("The link request expired. Start again.");
             }
             return Long.parseLong(parts[0]);
         } catch (NumberFormatException e) {

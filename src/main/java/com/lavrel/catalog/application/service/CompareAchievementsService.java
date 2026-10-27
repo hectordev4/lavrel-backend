@@ -9,8 +9,9 @@ import com.lavrel.catalog.application.port.out.PlatformCatalogPort.PlatformAchie
 import com.lavrel.catalog.domain.Achievement;
 import com.lavrel.catalog.domain.AchievementMapping;
 import com.lavrel.catalog.domain.GameMapping;
+import com.lavrel.catalog.domain.GameNotOnPlatformException;
+import com.lavrel.catalog.domain.InvalidComparisonException;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.lavrel.shared.domain.Platform;
+import com.lavrel.shared.domain.PlatformRegistry;
 
 /**
  * Matches another platform's achievements against our Steam-based list.
@@ -29,7 +31,7 @@ import com.lavrel.shared.domain.Platform;
 @Service
 public class CompareAchievementsService implements CompareAchievementsUseCase {
 
-    private final Map<Platform, PlatformCatalogPort> catalogPorts = new EnumMap<>(Platform.class);
+    private final PlatformRegistry<PlatformCatalogPort> catalogPorts;
     private final GameMappingRepositoryPort gameMappings;
     private final AchievementRepositoryPort achievements;
     private final AchievementMappingRepositoryPort achievementMappings;
@@ -39,7 +41,7 @@ public class CompareAchievementsService implements CompareAchievementsUseCase {
                                       AchievementRepositoryPort achievements,
                                       AchievementMappingRepositoryPort achievementMappings,
                                       TransactionTemplate tx) {
-        ports.forEach(p -> catalogPorts.put(p.platform(), p));
+        this.catalogPorts = new PlatformRegistry<>(ports, "achievement comparison");
         this.gameMappings = gameMappings;
         this.achievements = achievements;
         this.achievementMappings = achievementMappings;
@@ -49,14 +51,11 @@ public class CompareAchievementsService implements CompareAchievementsUseCase {
     @Override
     public int compare(long gameId, Platform platform) {
         if (platform == Platform.STEAM) {
-            throw new IllegalArgumentException("Steam is the base list; nothing to compare");
+            throw new InvalidComparisonException("Steam is the base list; nothing to compare");
         }
-        PlatformCatalogPort port = catalogPorts.get(platform);
-        if (port == null) {
-            throw new IllegalStateException("No catalog adapter for " + platform);
-        }
+        PlatformCatalogPort port = catalogPorts.require(platform);
         GameMapping gameMapping = gameMappings.findByGameIdAndPlatform(gameId, platform)
-                .orElseThrow(() -> new IllegalStateException("Game " + gameId + " has no mapping on " + platform));
+                .orElseThrow(() -> new GameNotOnPlatformException(gameId, platform));
 
         List<Achievement> steamList = achievements.findByGameId(gameId);
         List<PlatformAchievement> platformList = port.fetchAchievements(gameMapping.platformGameId());

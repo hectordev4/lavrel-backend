@@ -1,10 +1,19 @@
 package com.lavrel.catalog.adapter.in.web;
 
-import com.lavrel.catalog.application.port.in.ImportSteamCatalogUseCase;
-import com.lavrel.catalog.application.port.in.ImportSteamCatalogUseCase.BatchSeedResult;
-import com.lavrel.catalog.application.port.in.ImportSteamCatalogUseCase.EnrichResult;
-import com.lavrel.catalog.application.port.in.ImportSteamCatalogUseCase.RefreshResult;
-import com.lavrel.catalog.application.port.in.ImportSteamCatalogUseCase.SeedResult;
+import com.lavrel.catalog.application.port.in.EnrichGamesUseCase;
+import com.lavrel.catalog.application.port.in.EnrichGamesUseCase.EnrichResult;
+import com.lavrel.catalog.application.port.in.RefreshGamesUseCase;
+import com.lavrel.catalog.application.port.in.RefreshGamesUseCase.RefreshResult;
+import com.lavrel.catalog.application.port.in.SeedSteamCatalogUseCase;
+import com.lavrel.catalog.application.port.in.SeedSteamCatalogUseCase.BatchSeedResult;
+import com.lavrel.catalog.application.port.in.SeedSteamCatalogUseCase.SeedResult;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
  *  - /seed-next: resumable walk through ALL Steam games; call it again with the returned nextCursor.
  *  - /enrich: gives details to games imported before details existed; adult ones are removed.
  *  - /refresh: the manual sync with Steam for published games (tags, genres, details); games stay visible.
+ * Bodies are validated: an out-of-range limit or a non-numeric app id is a 400 validation_failed.
  */
 @RestController
 @RequestMapping("/api/admin/catalog/steam")
@@ -27,45 +37,49 @@ public class AdminCatalogController {
     private static final int DEFAULT_ENRICH_LIMIT = 50;
     private static final int DEFAULT_REFRESH_DAYS = 30;
     private static final int MAX_LIMIT = 200;
+    private static final int MAX_APP_IDS = 500;
+    private static final String APP_ID = "\\d{1,10}";
+    private static final String APP_ID_MESSAGE = "must be a numeric Steam app id";
 
-    private final ImportSteamCatalogUseCase importSteamCatalog;
+    private final SeedSteamCatalogUseCase seedCatalog;
+    private final EnrichGamesUseCase enrichGames;
+    private final RefreshGamesUseCase refreshGames;
 
-    public AdminCatalogController(ImportSteamCatalogUseCase importSteamCatalog) {
-        this.importSteamCatalog = importSteamCatalog;
+    public AdminCatalogController(SeedSteamCatalogUseCase seedCatalog, EnrichGamesUseCase enrichGames,
+                                  RefreshGamesUseCase refreshGames) {
+        this.seedCatalog = seedCatalog;
+        this.enrichGames = enrichGames;
+        this.refreshGames = refreshGames;
     }
 
     /** Body {"limit": 100} for the most played games, or {"appIds": ["570", "730"]} for specific ones. */
     @PostMapping("/seed")
-    public SeedResponse seed(@RequestBody(required = false) SeedRequest request) {
-        List<String> appIds = request == null || request.appIds() == null ? List.of()
-                : request.appIds().stream().map(String::trim).filter(id -> id.matches("\\d{1,10}")).toList();
-
-        SeedResult result;
-        if (!appIds.isEmpty()) {
-            result = importSteamCatalog.seed(appIds);
-        } else {
-            result = importSteamCatalog.seedMostPlayed(clamp(request == null ? null : request.limit(), DEFAULT_LIMIT));
-        }
+    public SeedResponse seed(@Valid @RequestBody(required = false) SeedRequest request) {
+        SeedRequest r = request == null ? new SeedRequest(null, null) : request;
+        SeedResult result = r.appIds() == null || r.appIds().isEmpty()
+                ? seedCatalog.seedMostPlayed(orDefault(r.limit(), DEFAULT_LIMIT))
+                : seedCatalog.seed(r.appIds());
         return new SeedResponse(result.requested(), result.alreadyKnown(), result.skippedKnownFailures(),
                 result.imported(), result.notImportable(), result.stoppedEarly(), result.pendingEnriched());
     }
 
     /** Body {"cursor": 0, "limit": 100}. limit = real import attempts for this call. */
     @PostMapping("/seed-next")
-    public BatchSeedResponse seedNext(@RequestBody(required = false) SeedNextRequest request) {
-        long cursor = request == null || request.cursor() == null ? 0 : Math.max(0, request.cursor());
-        BatchSeedResult r = importSteamCatalog.seedNextBatch(cursor,
-                clamp(request == null ? null : request.limit(), DEFAULT_LIMIT));
-        return new BatchSeedResponse(r.nextCursor(), r.hasMore(), r.scanned(), r.alreadyKnown(),
-                r.skippedKnownFailures(), r.attempted(), r.imported(), r.notImportable(), r.stoppedEarly());
+    public BatchSeedResponse seedNext(@Valid @RequestBody(required = false) SeedNextRequest request) {
+        SeedNextRequest r = request == null ? new SeedNextRequest(null, null) : request;
+        BatchSeedResult result = seedCatalog.seedNextBatch(r.cursor() == null ? 0 : r.cursor(),
+                orDefault(r.limit(), DEFAULT_LIMIT));
+        return new BatchSeedResponse(result.nextCursor(), result.hasMore(), result.scanned(), result.alreadyKnown(),
+                result.skippedKnownFailures(), result.attempted(), result.imported(), result.notImportable(),
+                result.stoppedEarly());
     }
 
     /** Body {"limit": 50}. Run until remaining is 0. */
     @PostMapping("/enrich")
-    public EnrichResponse enrich(@RequestBody(required = false) EnrichRequest request) {
-        EnrichResult r = importSteamCatalog.enrichPendingGames(
-                clamp(request == null ? null : request.limit(), DEFAULT_ENRICH_LIMIT));
-        return new EnrichResponse(r.checked(), r.removed(), r.remaining(), r.stoppedEarly());
+    public EnrichResponse enrich(@Valid @RequestBody(required = false) EnrichRequest request) {
+        EnrichResult result = enrichGames.enrichPendingGames(
+                orDefault(request == null ? null : request.limit(), DEFAULT_ENRICH_LIMIT));
+        return new EnrichResponse(result.checked(), result.removed(), result.remaining(), result.stoppedEarly());
     }
 
     /**
@@ -74,33 +88,42 @@ public class AdminCatalogController {
      * Run until remaining is 0.
      */
     @PostMapping("/refresh")
-    public RefreshResponse refresh(@RequestBody(required = false) RefreshRequest request) {
-        List<String> appIds = request == null || request.appIds() == null ? List.of()
-                : request.appIds().stream().map(String::trim).filter(id -> id.matches("\\d{1,10}")).toList();
-        int olderThanDays = request == null || request.olderThanDays() == null
-                ? DEFAULT_REFRESH_DAYS : Math.max(0, Math.min(request.olderThanDays(), 3650));
-        boolean refreshTagNames = request != null && Boolean.TRUE.equals(request.refreshTagNames());
-
-        RefreshResult r = importSteamCatalog.refreshGames(appIds, olderThanDays,
-                clamp(request == null ? null : request.limit(), DEFAULT_ENRICH_LIMIT), refreshTagNames);
-        return new RefreshResponse(r.refreshed(), r.removed(), r.notInCatalog(), r.remaining(), r.stoppedEarly());
+    public RefreshResponse refresh(@Valid @RequestBody(required = false) RefreshRequest request) {
+        RefreshRequest r = request == null ? new RefreshRequest(null, null, null, null) : request;
+        RefreshResult result = refreshGames.refreshGames(
+                r.appIds() == null ? List.of() : r.appIds(),
+                orDefault(r.olderThanDays(), DEFAULT_REFRESH_DAYS),
+                orDefault(r.limit(), DEFAULT_ENRICH_LIMIT),
+                Boolean.TRUE.equals(r.refreshTagNames()));
+        return new RefreshResponse(result.refreshed(), result.removed(), result.notInCatalog(), result.remaining(),
+                result.stoppedEarly());
     }
 
-    private static int clamp(Integer limit, int defaultValue) {
-        return Math.max(1, Math.min(limit == null ? defaultValue : limit, MAX_LIMIT));
+    private static int orDefault(Integer value, int defaultValue) {
+        return value == null ? defaultValue : value;
     }
 
-    public record SeedRequest(Integer limit, List<String> appIds) {
+    // ---------------------------------------------------------------- request bodies (validated)
+
+    public record SeedRequest(
+            @Min(1) @Max(MAX_LIMIT) Integer limit,
+            @Size(max = MAX_APP_IDS) List<@NotNull @Pattern(regexp = APP_ID, message = APP_ID_MESSAGE) String> appIds) {
     }
 
-    public record SeedNextRequest(Long cursor, Integer limit) {
+    public record SeedNextRequest(@PositiveOrZero Long cursor, @Min(1) @Max(MAX_LIMIT) Integer limit) {
     }
 
-    public record EnrichRequest(Integer limit) {
+    public record EnrichRequest(@Min(1) @Max(MAX_LIMIT) Integer limit) {
     }
 
-    public record RefreshRequest(List<String> appIds, Integer olderThanDays, Integer limit, Boolean refreshTagNames) {
+    public record RefreshRequest(
+            @Size(max = MAX_APP_IDS) List<@NotNull @Pattern(regexp = APP_ID, message = APP_ID_MESSAGE) String> appIds,
+            @Min(0) @Max(3650) Integer olderThanDays,
+            @Min(1) @Max(MAX_LIMIT) Integer limit,
+            Boolean refreshTagNames) {
     }
+
+    // ---------------------------------------------------------------- responses
 
     public record SeedResponse(int requested, int alreadyKnown, int skippedKnownFailures, int imported,
                                int notImportable, boolean stoppedEarly, int pendingEnriched) {

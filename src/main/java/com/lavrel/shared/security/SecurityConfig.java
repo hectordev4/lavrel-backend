@@ -41,8 +41,8 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/error").permitAll()
-                        // Steam sends the browser here without a token; the signed "state" identifies the user.
-                        .requestMatchers("/api/steam/callback").permitAll()
+                        // Platforms redirect the browser here without our token; the signed state identifies the user.
+                        .requestMatchers("/api/platforms/*/callback", "/api/steam/callback").permitAll()
                         // Only the Firebase UIDs listed in app.admin.firebase-uids (none by default).
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
