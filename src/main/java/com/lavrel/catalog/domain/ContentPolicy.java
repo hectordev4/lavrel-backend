@@ -1,39 +1,47 @@
 package com.lavrel.catalog.domain;
 
+import com.lavrel.catalog.config.CatalogFilterProperties;
 import com.lavrel.catalog.domain.GameMetadata.TagWeight;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
- * Decides whether a game may enter the catalog. The catalog is shown to visitors who are not logged in,
- * so it must be safe for work, while mainstream games with some nudity (The Witcher 3...) should stay.
+ * Content filter. Returns the rejection reason, or empty when the game passes.
  *
- * The decisive signal is the user tags WITH their weights: an adult game has "Sexual Content" or "Nudity"
- * among its top tags, a mainstream game has them far down the list or with a small share of the top weight.
- *
- * STANDARD (default) blocks:
- *  - content descriptors "Adult Only Sexual Content" (3) and "Frequent Nudity or Sexual Content" (4);
- *  - ESRB "Adults Only";
- *  - the tag "Hentai", at any weight;
- *  - the tags "Sexual Content", "Nudity" and "Sexual Themes" when prominent: within the top {topRank}
- *    tags, or with at least {weightRatio} of the top tag's weight;
- *  - the store genres "Sexual Content" and "Nudity";
- *  - explicit wording in the title or short description.
- * STRICT also blocks "Some Nudity or Sexual Content" (1) and those three tags at any weight.
- * OFF allows everything.
+ * Category : appdetails "type" must be "game" (no DLC, music, video, demo).
+ * Layer 1  : descriptor 3 (Adult Only Sexual Content) rejects outright.
+ *            Descriptor 4 (Frequent Nudity or Sexual Content) rejects only when a sexual tag
+ *            ranks in the top strictDescriptorMaxRank, at any share.
+ * Layer 2  : sexual tag share of the top-N weight sum; reject when share >= rejectShare AND
+ *            rank <= rejectMaxRank. Everything else (rank 4+, or a smaller share) passes.
+ * Layer 3  : excluded tags (any rank) and excluded store genres.
  */
 public final class ContentPolicy {
 
+    private final CatalogFilterProperties rules;
+    private final Set<String> excludedGenres;
+
+    public ContentPolicy(CatalogFilterProperties rules) {
+        this.rules = rules;
+        this.excludedGenres = rules.excludedGenres().stream()
+                .map(g -> g.trim().toLowerCase(Locale.ROOT))
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    // ---- Legacy API, kept so ImportSteamCatalogService compiles unchanged. -------------------------------
+    // Prefer injecting the ContentPolicy bean (built from app.catalog.filter.*) and calling evaluate(GameSignals).
+
+    /** @deprecated only OFF still matters: it disables the filter. STANDARD and STRICT both use the new rules. */
+    @Deprecated
     public enum Level {
         OFF, STANDARD, STRICT;
 
-        /** Missing means the default (STANDARD); an unknown value falls back to the safest level. */
         public static Level parse(String value) {
             if (value == null || value.isBlank()) {
                 return STANDARD;
@@ -46,110 +54,126 @@ public final class ContentPolicy {
         }
     }
 
-    /** What is known about a game when the policy is applied; anything may be null or empty. */
+    /** @deprecated title, description and ESRB rating are no longer used by the rules. */
+    @Deprecated
     public record Signals(String title, String description, Collection<Integer> contentDescriptorIds,
                           Collection<String> genres, List<TagWeight> tags, String esrbRating) {
     }
 
-    private static final int SOME_NUDITY_OR_SEXUAL = 1;
-    private static final int ADULT_ONLY_SEXUAL = 3;
-    private static final int FREQUENT_NUDITY_OR_SEXUAL = 4;
-
-    // Steam's tag ids (from the store's tag list)
-    private static final long TAG_HENTAI = 9130;
-    private static final long TAG_SEXUAL_CONTENT = 12095;
-    private static final long TAG_NUDITY = 6650;
-    private static final long TAG_SEXUAL_THEMES = 40500;
-    private static final Set<Long> SEXUAL_TAGS = Set.of(TAG_SEXUAL_CONTENT, TAG_NUDITY, TAG_SEXUAL_THEMES);
-
-    private static final Set<String> SEXUAL_GENRES = Set.of("sexual content", "nudity");
-
-    private static final Pattern EXPLICIT_WORDS = Pattern.compile(
-            "\\b(hentai|porn\\w*|nsfw|erotic\\w*|eroge|ecchi|lewd|xxx)\\b", Pattern.CASE_INSENSITIVE);
-
-    private final Level level;
-    private final int sexualTagTopRank;
-    private final double sexualTagWeightRatio;
-
-    public ContentPolicy(Level level, int sexualTagTopRank, double sexualTagWeightRatio) {
-        this.level = level;
-        this.sexualTagTopRank = sexualTagTopRank;
-        this.sexualTagWeightRatio = sexualTagWeightRatio;
+    /** @deprecated uses the built-in defaults, not app.catalog.filter.* */
+    @Deprecated
+    public ContentPolicy(Level level) {
+        this(CatalogFilterProperties.defaults(level != Level.OFF));
     }
 
-    /** @return why the game must stay out of the catalog, or empty if it is allowed */
+    /** @deprecated the old top-rank and weight-ratio settings are ignored; the new thresholds apply. */
+    @Deprecated
+    public ContentPolicy(Level level, int ignoredSexualTagTopRank, double ignoredSexualTagWeightRatio) {
+        this(level);
+    }
+
+    /** @deprecated delegates to evaluate(GameSignals). */
+    @Deprecated
     public Optional<String> rejectionReason(Signals signals) {
-        if (level == Level.OFF) {
-            return Optional.empty();
-        }
-        Set<Integer> descriptors = signals.contentDescriptorIds() == null
-                ? Set.of() : new HashSet<>(signals.contentDescriptorIds());
-
-        if (descriptors.contains(ADULT_ONLY_SEXUAL)) {
-            return Optional.of("adult content: Adult Only Sexual Content");
-        }
-        if (descriptors.contains(FREQUENT_NUDITY_OR_SEXUAL)) {
-            return Optional.of("adult content: Frequent Nudity or Sexual Content");
-        }
-        if ("ao".equalsIgnoreCase(signals.esrbRating())) {
-            return Optional.of("adult content: ESRB Adults Only");
-        }
-
-        Optional<String> byTags = rejectionByTags(signals.tags());
-        if (byTags.isPresent()) {
-            return byTags;
-        }
-
-        if (signals.genres() != null) {
-            for (String genre : signals.genres()) {
-                if (genre != null && SEXUAL_GENRES.contains(genre.trim().toLowerCase(Locale.ROOT))) {
-                    return Optional.of("adult content: genre " + genre.trim());
-                }
-            }
-        }
-        if (containsExplicitWording(signals.title()) || containsExplicitWording(signals.description())) {
-            return Optional.of("adult content: explicit wording");
-        }
-        if (level == Level.STRICT && descriptors.contains(SOME_NUDITY_OR_SEXUAL)) {
-            return Optional.of("adult content: Some Nudity or Sexual Content");
-        }
-        return Optional.empty();
+        return evaluate(new GameSignals(0, null,
+                copyOf(signals.contentDescriptorIds()), signals.tags(), copyOf(signals.genres())));
     }
 
-    private Optional<String> rejectionByTags(List<TagWeight> tags) {
-        if (tags == null || tags.isEmpty()) {
+    private static <T> List<T> copyOf(Collection<T> values) {
+        return values == null ? List.of() : new ArrayList<>(values);
+    }
+
+    // ---------------------------------------------------------------------------------------------------------
+
+    public Optional<String> evaluate(GameSignals game) {
+        if (!rules.enabled()) {
             return Optional.empty();
         }
-        List<TagWeight> ranked = tags.stream()
+        List<TagWeight> ranked = rank(game.tags());
+        return checkCategory(game)
+                .or(() -> checkDescriptors(game, ranked))
+                .or(() -> checkTagShare(ranked))
+                .or(() -> checkExclusions(game));
+    }
+
+    private static List<TagWeight> rank(List<TagWeight> tags) {
+        return nullSafe(tags).stream()
                 .sorted(Comparator.comparingInt(TagWeight::weight).reversed())
                 .toList();
-        long topWeight = ranked.get(0).weight();
+    }
 
-        for (int rank = 0; rank < ranked.size(); rank++) {
-            TagWeight tag = ranked.get(rank);
-            if (tag.tagId() == TAG_HENTAI) {
-                return Optional.of("adult content: tag Hentai");
+    private Optional<String> checkCategory(GameSignals game) {
+        String type = game.type();
+        if (type != null && !rules.requiredType().equalsIgnoreCase(type.trim())) {
+            return Optional.of("not a game: type " + type.trim());
+        }
+        return Optional.empty();
+    }
+
+    // Layer 1
+    private Optional<String> checkDescriptors(GameSignals game, List<TagWeight> ranked) {
+        List<Integer> descriptors = nullSafe(game.contentDescriptorIds());
+        for (Integer id : descriptors) {
+            if (id != null && rules.rejectedDescriptorIds().contains(id)) {
+                return Optional.of("adult content: descriptor " + id + " (Adult Only Sexual Content)");
             }
-            if (SEXUAL_TAGS.contains(tag.tagId())) {
-                boolean prominent = rank < sexualTagTopRank
-                        || (topWeight > 0 && tag.weight() >= sexualTagWeightRatio * topWeight);
-                if (level == Level.STRICT || prominent) {
-                    return Optional.of("adult content: tag " + sexualTagLabel(tag.tagId())
-                            + " (rank " + (rank + 1) + ", weight " + tag.weight() + " of " + topWeight + ")");
-                }
+        }
+        Integer strictId = descriptors.stream()
+                .filter(id -> id != null && rules.strictDescriptorIds().contains(id))
+                .findFirst()
+                .orElse(null);
+        if (strictId == null) {
+            return Optional.empty();
+        }
+        int limit = Math.min(rules.strictDescriptorMaxRank(), ranked.size());
+        for (int i = 0; i < limit; i++) {
+            long tagId = ranked.get(i).tagId();
+            if (rules.sexualTagIds().contains(tagId)) {
+                return Optional.of("adult content: descriptor " + strictId + " with tag " + tagId + " at rank " + (i + 1));
             }
         }
         return Optional.empty();
     }
 
-    private static String sexualTagLabel(long tagId) {
-        if (tagId == TAG_NUDITY) {
-            return "Nudity";
+    // Layer 2
+    private Optional<String> checkTagShare(List<TagWeight> ranked) {
+        List<TagWeight> top = ranked.subList(0, Math.min(rules.normalizationCount(), ranked.size()));
+        long total = top.stream().mapToLong(TagWeight::weight).sum();
+        if (total <= 0) {
+            return Optional.empty();
         }
-        return tagId == TAG_SEXUAL_THEMES ? "Sexual Themes" : "Sexual Content";
+        for (int i = 0; i < top.size(); i++) {
+            TagWeight tag = top.get(i);
+            if (!rules.sexualTagIds().contains(tag.tagId())) {
+                continue;
+            }
+            int rank = i + 1;
+            double share = (double) tag.weight() / total;
+            if (share >= rules.rejectShare() && rank <= rules.rejectMaxRank()) {
+                return Optional.of(String.format(Locale.ROOT,
+                        "adult content: tag %d at rank %d with %.1f%% of the top-%d votes",
+                        tag.tagId(), rank, share * 100, top.size()));
+            }
+        }
+        return Optional.empty();
     }
 
-    private static boolean containsExplicitWording(String text) {
-        return text != null && EXPLICIT_WORDS.matcher(text).find();
+    // Layer 3
+    private Optional<String> checkExclusions(GameSignals game) {
+        for (TagWeight tag : nullSafe(game.tags())) {
+            if (rules.excludedTagIds().contains(tag.tagId())) {
+                return Optional.of("excluded tag " + tag.tagId());
+            }
+        }
+        for (String genre : nullSafe(game.genres())) {
+            if (genre != null && excludedGenres.contains(genre.trim().toLowerCase(Locale.ROOT))) {
+                return Optional.of("excluded genre " + genre.trim());
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static <T> List<T> nullSafe(List<T> list) {
+        return list == null ? List.of() : list;
     }
 }
