@@ -8,10 +8,11 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Set;
+import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,7 +22,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * Reads "Authorization: Bearer <Firebase ID token>", asks the user feature to authenticate it
  * (find or create the user) and stores the resulting AuthenticatedUser as the principal.
- * Users whose Firebase UID is in app.admin.firebase-uids also get ROLE_ADMIN (for /api/admin/**).
+ * Authorities: an account with a verified e-mail gets EMAIL_VERIFIED plus ROLE_<its role> (USER, SUPPORT,
+ * ADMIN, stored in the database). An unverified account gets none, so it can only reach the endpoints that
+ * merely require authentication (its own profile); SecurityConfig has the rules.
  * Controllers receive the principal with @AuthenticationPrincipal and only ever see IDs, never a token.
  *
  * Deliberately NOT a @Component: a Filter bean would also be registered in the servlet container
@@ -32,18 +35,18 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
 
+    /** Granted only to accounts whose e-mail is verified; required by almost every endpoint. */
+    public static final String EMAIL_VERIFIED = "EMAIL_VERIFIED";
+
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final AuthenticateUserUseCase authenticateUser;
     private final AuthenticationEntryPoint entryPoint;
-    private final Set<String> adminFirebaseUids;
 
     public FirebaseAuthenticationFilter(AuthenticateUserUseCase authenticateUser,
-                                        AuthenticationEntryPoint entryPoint,
-                                        Set<String> adminFirebaseUids) {
+                                        AuthenticationEntryPoint entryPoint) {
         this.authenticateUser = authenticateUser;
         this.entryPoint = entryPoint;
-        this.adminFirebaseUids = adminFirebaseUids;
     }
 
     @Override
@@ -60,10 +63,7 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
             try {
                 AuthenticatedUser user = authenticateUser.authenticate(token);
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
-                context.setAuthentication(new UsernamePasswordAuthenticationToken(user, null,
-                        adminFirebaseUids.contains(user.firebaseUid())
-                                ? AuthorityUtils.createAuthorityList("ROLE_ADMIN")
-                                : AuthorityUtils.NO_AUTHORITIES));
+                context.setAuthentication(new UsernamePasswordAuthenticationToken(user, null, authorities(user)));
                 SecurityContextHolder.setContext(context);
             } catch (InvalidTokenException e) {
                 Throwable cause = e.getCause() != null ? e.getCause() : e;
@@ -75,5 +75,12 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
         }
         // No usable token: continue unauthenticated; the rules in SecurityConfig decide if that is allowed.
         chain.doFilter(request, response);
+    }
+
+    private static List<GrantedAuthority> authorities(AuthenticatedUser user) {
+        if (!user.emailVerified()) {
+            return AuthorityUtils.NO_AUTHORITIES;
+        }
+        return AuthorityUtils.createAuthorityList(EMAIL_VERIFIED, "ROLE_" + user.role().name());
     }
 }

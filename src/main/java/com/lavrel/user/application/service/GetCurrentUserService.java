@@ -20,7 +20,7 @@ public class GetCurrentUserService implements GetCurrentUserUseCase {
     @Override
     public CurrentUserView getCurrentUser(long userId) {
         User user = users.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
-        return new CurrentUserView(user.id(), user.firebaseUid(), user.username(), user.email(),
-                user.photoUrl(), user.countryId());
+        return new CurrentUserView(user.publicId(), user.firebaseUid(), user.username(), user.email(),
+                user.emailVerified(), user.photoUrl(), user.countryId(), user.role());
     }
 }

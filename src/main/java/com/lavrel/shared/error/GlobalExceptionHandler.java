@@ -8,11 +8,17 @@ import com.lavrel.shared.domain.PlatformNotSupportedException;
 import com.lavrel.shared.domain.PlatformUnavailableException;
 import com.lavrel.user.domain.AccountAlreadyLinkedException;
 import com.lavrel.user.domain.CountryNotFoundException;
+import com.lavrel.user.domain.EmailAlreadyVerifiedException;
+import com.lavrel.user.domain.EmailVerificationNotAllowedException;
+import com.lavrel.user.domain.IdentityProviderUnavailableException;
 import com.lavrel.user.domain.InvalidIdentityProofException;
+import com.lavrel.user.domain.InvalidRoleChangeException;
 import com.lavrel.user.domain.InvalidUsernameException;
 import com.lavrel.user.domain.PlatformAccountNotFoundException;
+import com.lavrel.user.domain.PublicUserNotFoundException;
 import com.lavrel.user.domain.UserNotFoundException;
-import com.lavrel.user.domain.UsernameTakenException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -28,6 +34,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(AccountAlreadyLinkedException.class)
     public ResponseEntity<ApiError> accountAlreadyLinked(AccountAlreadyLinkedException e) {
         return error(HttpStatus.CONFLICT, "account_already_linked", e.getMessage());
@@ -38,8 +46,15 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.NOT_FOUND, "platform_account_not_found", e.getMessage());
     }
 
+    /** The internal id stays in the log; the client only learns that the account does not exist. */
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ApiError> userNotFound(UserNotFoundException e) {
+        log.info("User not found: internal id {}", e.userId());
+        return error(HttpStatus.NOT_FOUND, "user_not_found", e.getMessage());
+    }
+
+    @ExceptionHandler(PublicUserNotFoundException.class)
+    public ResponseEntity<ApiError> publicUserNotFound(PublicUserNotFoundException e) {
         return error(HttpStatus.NOT_FOUND, "user_not_found", e.getMessage());
     }
 
@@ -51,11 +66,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidUsernameException.class)
     public ResponseEntity<ApiError> invalidUsername(InvalidUsernameException e) {
         return error(HttpStatus.BAD_REQUEST, "invalid_username", e.getMessage());
-    }
-
-    @ExceptionHandler(UsernameTakenException.class)
-    public ResponseEntity<ApiError> usernameTaken(UsernameTakenException e) {
-        return error(HttpStatus.CONFLICT, "username_taken", e.getMessage());
     }
 
     @ExceptionHandler(CountryNotFoundException.class)
@@ -104,6 +114,29 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(GameNotOnPlatformException.class)
     public ResponseEntity<ApiError> gameNotOnPlatform(GameNotOnPlatformException e) {
         return error(HttpStatus.NOT_FOUND, "game_not_on_platform", e.getMessage());
+    }
+
+    @ExceptionHandler(InvalidRoleChangeException.class)
+    public ResponseEntity<ApiError> invalidRoleChange(InvalidRoleChangeException e) {
+        return error(HttpStatus.BAD_REQUEST, "invalid_role_change", e.getMessage());
+    }
+
+    /** Deliberately the same body as an unknown path: the dev shortcut does not reveal that it exists. */
+    @ExceptionHandler(EmailVerificationNotAllowedException.class)
+    public ResponseEntity<ApiError> emailVerificationNotAllowed(EmailVerificationNotAllowedException e) {
+        return error(HttpStatus.NOT_FOUND, "not_found", "Not found");
+    }
+
+    @ExceptionHandler(EmailAlreadyVerifiedException.class)
+    public ResponseEntity<ApiError> emailAlreadyVerified(EmailAlreadyVerifiedException e) {
+        return error(HttpStatus.CONFLICT, "already_verified", e.getMessage());
+    }
+
+    @ExceptionHandler(IdentityProviderUnavailableException.class)
+    public ResponseEntity<ApiError> identityProviderUnavailable(IdentityProviderUnavailableException e) {
+        log.warn("Identity provider call failed: {}", e.getCause() == null ? e.getMessage() : e.getCause().getMessage());
+        return error(HttpStatus.BAD_GATEWAY, "identity_provider_unavailable",
+                "The sign-in service could not complete the change. Try again in a moment.");
     }
 
     private static ResponseEntity<ApiError> error(HttpStatus status, String code, String message) {

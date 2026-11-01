@@ -21,7 +21,8 @@ public class FirebaseTokenVerifierAdapter implements TokenVerifierPort {
     public VerifiedToken verify(String idToken) {
         try {
             FirebaseToken token = firebaseAuth.verifyIdToken(idToken);
-            return new VerifiedToken(token.getUid(), token.getEmail(), token.getName(), token.getPicture());
+            return new VerifiedToken(token.getUid(), token.getEmail(), token.isEmailVerified(), token.getName(),
+                    token.getPicture());
         } catch (FirebaseAuthException | IllegalArgumentException e) {
             throw new InvalidTokenException("Invalid Firebase ID token", e);
         }

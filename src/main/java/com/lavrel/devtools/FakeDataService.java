@@ -17,14 +17,18 @@ import org.springframework.transaction.support.TransactionTemplate;
 @ConditionalOnProperty(name = "app.dev.fake-data-enabled", havingValue = "true")
 public class FakeDataService {
 
-    /** Users with a random country (10% without one), each with a verified Steam account. */
+    /**
+     * Users with a random country (10% without one), each with a verified Steam account.
+     * public_id is left to the column default (migration V12), so the id range is not repeated here.
+     */
     private static final String INSERT_USERS_AND_ACCOUNTS = """
             WITH c AS (SELECT array_agg(id ORDER BY id) AS ids FROM country),
             new_users AS (
-                INSERT INTO users (firebase_uid, username, email, country_id, created_at)
+                INSERT INTO users (firebase_uid, username, email, email_verified, country_id, created_at)
                 SELECT 'fake-' || gen_random_uuid(),
                        'fake_' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 12),
                        NULL,
+                       true,
                        CASE WHEN random() < 0.1 THEN NULL
                             ELSE c.ids[1 + floor(random() * cardinality(c.ids))::int] END,
                        now() - random() * interval '365 days'

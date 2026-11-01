@@ -9,12 +9,12 @@ public final class UserMapper {
     }
 
     public static User toDomain(UserJpaEntity e) {
-        return new User(e.getId(), e.getFirebaseUid(), e.getUsername(), e.getEmail(), e.getPhotoUrl(),
-                e.getCountryId(), e.getCreatedAt());
+        return new User(e.getId(), e.getPublicId(), e.getFirebaseUid(), e.getUsername(), e.getEmail(),
+                e.isEmailVerified(), e.getPhotoUrl(), e.getCountryId(), e.getRole(), e.getCreatedAt());
     }
 
     public static UserJpaEntity toEntity(User d) {
-        return new UserJpaEntity(d.id(), d.firebaseUid(), d.username(), d.email(), d.photoUrl(),
-                d.countryId(), d.createdAt());
+        return new UserJpaEntity(d.id(), d.publicId(), d.firebaseUid(), d.username(), d.email(), d.emailVerified(),
+                d.photoUrl(), d.countryId(), d.role(), d.createdAt());
     }
 }

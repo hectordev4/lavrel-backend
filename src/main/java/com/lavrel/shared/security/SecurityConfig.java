@@ -2,11 +2,10 @@ package com.lavrel.shared.security;
 
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -27,12 +26,8 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    AuthenticateUserUseCase authenticateUser,
                                                    JsonAuthenticationEntryPoint entryPoint,
-                                                   @Value("${app.admin.firebase-uids:}") List<String> adminUids)
+                                                   JsonAccessDeniedHandler accessDeniedHandler)
             throws Exception {
-        Set<String> admins = adminUids.stream()
-                .map(String::trim)
-                .filter(uid -> !uid.isEmpty())
-                .collect(Collectors.toSet());
 
         http
                 // Stateless token API: no cookies, no sessions, so CSRF protection does not apply.
@@ -43,11 +38,15 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/error").permitAll()
                         // Platforms redirect the browser here without our token; the signed state identifies the user.
                         .requestMatchers("/api/platforms/*/callback", "/api/steam/callback").permitAll()
-                        // Only the Firebase UIDs listed in app.admin.firebase-uids (none by default).
+                        // Reachable before the e-mail is verified: the own profile (to show "check your inbox")
+                        // and the dev-only verification shortcut (absent unless app.dev.verify-email-uids is set).
+                        .requestMatchers(HttpMethod.GET, "/api/currentuser").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/dev/verify-my-email").authenticated()
+                        // Role from the users table; only granted together with a verified e-mail.
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .anyRequest().authenticated())
-                .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint))
-                .addFilterBefore(new FirebaseAuthenticationFilter(authenticateUser, entryPoint, admins),
+                        .anyRequest().hasAuthority(FirebaseAuthenticationFilter.EMAIL_VERIFIED))
+                .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint).accessDeniedHandler(accessDeniedHandler))
+                .addFilterBefore(new FirebaseAuthenticationFilter(authenticateUser, entryPoint),
                         UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
@@ -68,8 +67,9 @@ public class SecurityConfig {
     }
 
     /**
-     * There are no username/password users. Declaring this bean stops Spring Boot from creating its
-     * default user and logging a generated password at startup.
+     * Passwords never reach this backend: e-mail + password sign-in happens in Firebase, and we only see the
+     * resulting token. Declaring this bean stops Spring Boot from creating its default user and logging a
+     * generated password at startup.
      */
     @Bean
     public UserDetailsService noPasswordUsers() {

@@ -12,19 +12,26 @@ public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
 
     Optional<UserJpaEntity> findByFirebaseUid(String firebaseUid);
 
-    boolean existsByUsernameIgnoreCase(String username);
+    Optional<UserJpaEntity> findByPublicId(long publicId);
+
+    boolean existsByPublicId(long publicId);
 
     /** Race-safe first login: a concurrent insert of the same firebase_uid is silently ignored. */
     @Modifying
     @Query(value = """
-            INSERT INTO users (firebase_uid, username, email, photo_url, country_id, created_at)
-            VALUES (:firebaseUid, :username, :email, :photoUrl, :countryId, :createdAt)
+            INSERT INTO users (public_id, firebase_uid, username, email, email_verified, photo_url, country_id, role,
+                               created_at)
+            VALUES (:publicId, :firebaseUid, :username, :email, :emailVerified, :photoUrl, :countryId, :role,
+                    :createdAt)
             ON CONFLICT (firebase_uid) DO NOTHING
             """, nativeQuery = true)
-    int insertIfAbsent(@Param("firebaseUid") String firebaseUid,
+    int insertIfAbsent(@Param("publicId") long publicId,
+                       @Param("firebaseUid") String firebaseUid,
                        @Param("username") String username,
                        @Param("email") String email,
+                       @Param("emailVerified") boolean emailVerified,
                        @Param("photoUrl") String photoUrl,
                        @Param("countryId") Integer countryId,
+                       @Param("role") String role,
                        @Param("createdAt") Instant createdAt);
 }

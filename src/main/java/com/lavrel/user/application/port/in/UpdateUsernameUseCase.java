@@ -2,16 +2,14 @@ package com.lavrel.user.application.port.in;
 
 import com.lavrel.user.domain.InvalidUsernameException;
 import com.lavrel.user.domain.UserNotFoundException;
-import com.lavrel.user.domain.UsernameTakenException;
 
 public interface UpdateUsernameUseCase {
 
     /**
-     * Sets the public username. Also used by the sign-up form of our own accounts: right after creating the
-     * account the frontend sends the username the person typed.
+     * Sets the public username, a free display name that other users may also have. The sign-up form of
+     * e-mail accounts calls this right after creating the account, with the name the person typed.
      *
-     * @throws InvalidUsernameException if it is not 3-20 letters, digits or underscores, or is reserved
-     * @throws UsernameTakenException   if somebody else has it (case-insensitive)
+     * @throws InvalidUsernameException if it breaks the rules in Usernames (length, characters, reserved)
      * @throws UserNotFoundException    if the user does not exist
      */
     void updateUsername(long userId, String username);

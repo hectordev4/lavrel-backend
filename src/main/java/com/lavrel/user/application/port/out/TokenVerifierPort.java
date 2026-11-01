@@ -8,6 +8,10 @@ public interface TokenVerifierPort {
     /** @throws InvalidTokenException if the token is invalid or expired */
     VerifiedToken verify(String idToken);
 
-    record VerifiedToken(String uid, String email, String name, String photoUrl) {
+    /**
+     * emailVerified is Firebase's email_verified claim: always true for Google sign-in, true for e-mail and
+     * password accounts only after the person clicked the verification link (and the token was refreshed).
+     */
+    record VerifiedToken(String uid, String email, boolean emailVerified, String name, String photoUrl) {
     }
 }
