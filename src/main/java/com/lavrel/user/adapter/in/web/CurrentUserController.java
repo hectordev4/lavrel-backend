@@ -6,6 +6,9 @@ import com.lavrel.user.application.port.in.GetCurrentUserUseCase.CurrentUserView
 import com.lavrel.user.application.port.in.UpdateUserCountryUseCase;
 import com.lavrel.user.application.port.in.UpdateUsernameUseCase;
 import com.lavrel.user.domain.Role;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,7 +53,7 @@ public class CurrentUserController {
     @PatchMapping("/country")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateCountry(@AuthenticationPrincipal AuthenticatedUser user,
-                              @RequestBody UpdateCountryRequest request) {
+                              @Valid @RequestBody UpdateCountryRequest request) {
         updateUserCountry.updateCountry(user.userId(), request.countryId());
     }
 
@@ -61,7 +64,7 @@ public class CurrentUserController {
     @PatchMapping("/username")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateUsername(@AuthenticationPrincipal AuthenticatedUser user,
-                               @RequestBody UpdateUsernameRequest request) {
+                               @Valid @RequestBody UpdateUsernameRequest request) {
         updateUsername.updateUsername(user.userId(), request.username());
     }
 
@@ -70,10 +73,10 @@ public class CurrentUserController {
     }
 
     /** countryId may be null (clears the country). */
-    public record UpdateCountryRequest(Integer countryId) {
+    public record UpdateCountryRequest(@Positive Integer countryId) {
     }
 
     /** The rules (length, characters, reserved names) live in the domain: Usernames. */
-    public record UpdateUsernameRequest(String username) {
+    public record UpdateUsernameRequest(@NotNull String username) {
     }
 }

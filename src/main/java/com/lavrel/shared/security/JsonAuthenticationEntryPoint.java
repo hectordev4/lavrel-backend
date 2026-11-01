@@ -1,10 +1,12 @@
 package com.lavrel.shared.security;
 
+import com.lavrel.shared.error.ApiError;
+import com.lavrel.shared.error.ErrorResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
@@ -13,13 +15,19 @@ import org.springframework.stereotype.Component;
 @Component
 public class JsonAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
+    private static final ApiError UNAUTHORIZED =
+            new ApiError("unauthorized", "Missing or invalid Firebase ID token");
+
+    private final ErrorResponseWriter writer;
+
+    public JsonAuthenticationEntryPoint(ErrorResponseWriter writer) {
+        this.writer = writer;
+    }
+
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
-        response.getWriter().write("{\"error\":\"unauthorized\",\"message\":\"Missing or invalid Firebase ID token\"}");
+        writer.write(response, HttpStatus.UNAUTHORIZED, UNAUTHORIZED);
     }
 }

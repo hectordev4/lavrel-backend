@@ -1,10 +1,12 @@
 package com.lavrel.shared.security;
 
+import com.lavrel.shared.error.ApiError;
+import com.lavrel.shared.error.ErrorResponseWriter;
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase.AuthenticatedUser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,20 +20,26 @@ import org.springframework.stereotype.Component;
 @Component
 public class JsonAccessDeniedHandler implements AccessDeniedHandler {
 
+    private static final ApiError EMAIL_NOT_VERIFIED = new ApiError("email_not_verified",
+            "Verify your e-mail address to continue. Check your inbox for the verification link.");
+    private static final ApiError FORBIDDEN = new ApiError("forbidden", "You do not have permission to do this");
+
+    private final ErrorResponseWriter writer;
+
+    public JsonAccessDeniedHandler(ErrorResponseWriter writer) {
+        this.writer = writer;
+    }
+
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException accessDeniedException) throws IOException {
+        writer.write(response, HttpStatus.FORBIDDEN, isUnverified() ? EMAIL_NOT_VERIFIED : FORBIDDEN);
+    }
+
+    private static boolean isUnverified() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        boolean unverified = authentication != null
+        return authentication != null
                 && authentication.getPrincipal() instanceof AuthenticatedUser user
                 && !user.emailVerified();
-
-        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(unverified
-                ? "{\"error\":\"email_not_verified\",\"message\":\"Verify your e-mail address to continue. "
-                  + "Check your inbox for the verification link.\"}"
-                : "{\"error\":\"forbidden\",\"message\":\"You do not have permission to do this\"}");
     }
 }
