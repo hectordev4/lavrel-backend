@@ -1,5 +1,8 @@
 package com.lavrel.devtools;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,12 +27,14 @@ public class FakeDataController {
         this.fakeData = fakeData;
     }
 
-    /** Body {"users": 50, "gamesPerUser": 15}; both optional. */
+    /** Body {"users": 50, "gamesPerUser": 15}; both optional. Out of range is a 400 validation_failed. */
     @PostMapping
-    public FakeDataService.Summary create(@RequestBody(required = false) CreateRequest request) {
+    public CreateResponse create(@Valid @RequestBody(required = false) CreateRequest request) {
         int users = request == null || request.users() == null ? DEFAULT_USERS : request.users();
         int games = request == null || request.gamesPerUser() == null ? DEFAULT_GAMES_PER_USER : request.gamesPerUser();
-        return fakeData.create(Math.max(1, Math.min(users, 500)), Math.max(1, Math.min(games, 100)));
+        FakeDataService.Summary summary = fakeData.create(users, games);
+        return new CreateResponse(summary.usersCreated(), summary.gamesAdded(), summary.unlocksRecorded(),
+                summary.gamesInCatalog());
     }
 
     @DeleteMapping
@@ -37,7 +42,10 @@ public class FakeDataController {
         return new DeleteResponse(fakeData.deleteAll());
     }
 
-    public record CreateRequest(Integer users, Integer gamesPerUser) {
+    public record CreateRequest(@Min(1) @Max(500) Integer users, @Min(1) @Max(100) Integer gamesPerUser) {
+    }
+
+    public record CreateResponse(int usersCreated, int gamesAdded, int unlocksRecorded, int gamesInCatalog) {
     }
 
     public record DeleteResponse(int usersDeleted) {

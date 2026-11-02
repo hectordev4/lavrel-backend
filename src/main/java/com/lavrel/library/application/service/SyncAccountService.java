@@ -1,22 +1,22 @@
 package com.lavrel.library.application.service;
 
-import com.lavrel.catalog.application.port.in.ImportPlatformGamesUseCase;
 import com.lavrel.catalog.application.port.in.ImportPlatformGamesUseCase.ImportOutcome;
+import com.lavrel.catalog.application.port.in.ImportPlatformGamesUseCase;
 import com.lavrel.catalog.application.port.in.ResolveAchievementUseCase;
 import com.lavrel.catalog.application.port.in.ResolveGameUseCase;
 import com.lavrel.library.application.port.in.SyncAccountUseCase;
 import com.lavrel.library.application.port.out.AccountGameRepositoryPort;
-import com.lavrel.library.application.port.out.PlatformLibraryPort;
 import com.lavrel.library.application.port.out.PlatformLibraryPort.PlatformGame;
 import com.lavrel.library.application.port.out.PlatformLibraryPort.PlatformUnlock;
+import com.lavrel.library.application.port.out.PlatformLibraryPort;
 import com.lavrel.library.domain.AccountGame;
-import com.lavrel.progress.application.port.in.RecordUnlocksUseCase;
 import com.lavrel.progress.application.port.in.RecordUnlocksUseCase.Unlock;
+import com.lavrel.progress.application.port.in.RecordUnlocksUseCase;
+import com.lavrel.shared.domain.Platform;
 import com.lavrel.shared.domain.PlatformRegistry;
-import com.lavrel.user.application.port.in.GetPlatformAccountUseCase;
 import com.lavrel.user.application.port.in.GetPlatformAccountUseCase.PlatformAccountView;
+import com.lavrel.user.application.port.in.GetPlatformAccountUseCase;
 import com.lavrel.user.application.port.in.MarkAccountSyncedUseCase;
-import com.lavrel.user.domain.PlatformAccountNotFoundException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -74,12 +74,9 @@ public class SyncAccountService implements SyncAccountUseCase {
     }
 
     @Override
-    public SyncResult sync(long userId, long platformAccountId) {
-        PlatformAccountView account = accounts.getById(platformAccountId);
-        if (account.userId() != userId) {
-            // Do not reveal that the account exists for someone else.
-            throw new PlatformAccountNotFoundException(platformAccountId);
-        }
+    public SyncResult sync(long userId, Platform platform, String externalId) {
+        PlatformAccountView account = accounts.getOwned(userId, platform, externalId);
+        long platformAccountId = account.id();
         PlatformLibraryPort library = libraries.require(account.platform());
 
         Instant now = clock.instant();

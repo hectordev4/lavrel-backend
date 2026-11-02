@@ -2,8 +2,11 @@ package com.lavrel.user.adapter.in.web;
 
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase.AuthenticatedUser;
 import com.lavrel.user.application.port.in.ChangeUserRoleUseCase;
+import com.lavrel.user.domain.PublicIds;
 import com.lavrel.user.domain.Role;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,7 +32,7 @@ public class AdminUserController {
     @PatchMapping("/{publicId}/role")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void changeRole(@AuthenticationPrincipal AuthenticatedUser admin,
-                           @PathVariable("publicId") long publicId,
+                           @PathVariable("publicId") @Min(PublicIds.MIN) @Max(PublicIds.MAX) long publicId,
                            @Valid @RequestBody ChangeRoleRequest request) {
         changeUserRole.changeRole(admin.userId(), publicId, request.role());
     }

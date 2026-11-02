@@ -9,7 +9,7 @@ public final class UserMapper {
     }
 
     public static User toDomain(UserJpaEntity e) {
-        return new User(e.getId(), e.getPublicId(), e.getFirebaseUid(), e.getUsername(), e.getEmail(),
+        return User.restore(e.getId(), e.getPublicId(), e.getFirebaseUid(), e.getUsername(), e.getEmail(),
                 e.isEmailVerified(), e.getPhotoUrl(), e.getCountryId(), e.getRole(), e.getCreatedAt());
     }
 

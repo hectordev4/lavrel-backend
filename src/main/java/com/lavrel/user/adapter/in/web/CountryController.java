@@ -18,10 +18,14 @@ public class CountryController {
     }
 
     @GetMapping
-    public List<CountryResponse> listCountries() {
-        return listCountries.listCountries().stream()
+    public CountriesResponse listCountries() {
+        return new CountriesResponse(listCountries.listCountries().stream()
                 .map(c -> new CountryResponse(c.id(), c.code(), c.name()))
-                .toList();
+                .toList());
+    }
+
+    /** Wrapped in an object so fields can be added later without breaking clients. */
+    public record CountriesResponse(List<CountryResponse> countries) {
     }
 
     public record CountryResponse(int id, String code, String name) {

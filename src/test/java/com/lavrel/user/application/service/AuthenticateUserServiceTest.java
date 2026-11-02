@@ -52,7 +52,7 @@ class AuthenticateUserServiceTest {
 
     @Test
     void roleAndVerificationReachTheSecurityLayer() {
-        User admin = new User(7L, PublicIds.MIN, "uid-7", "boss", "a@b.c", true, null, null, Role.ADMIN,
+        User admin = User.restore(7L, PublicIds.MIN, "uid-7", "boss", "a@b.c", true, null, null, Role.ADMIN,
                 CLOCK.instant());
         when(tokens.verify("t")).thenReturn(new VerifiedToken("uid-7", "a@b.c", true, null, null));
         when(users.findByFirebaseUid("uid-7")).thenReturn(Optional.of(admin));
@@ -66,7 +66,7 @@ class AuthenticateUserServiceTest {
 
     @Test
     void clickingTheVerificationLinkIsStoredOnTheNextRequest() {
-        User stored = new User(7L, PublicIds.MIN, "uid-7", "SwiftOtter", "a@b.c", false, null, null, Role.USER,
+        User stored = User.restore(7L, PublicIds.MIN, "uid-7", "SwiftOtter", "a@b.c", false, null, null, Role.USER,
                 CLOCK.instant());
         when(tokens.verify("t")).thenReturn(new VerifiedToken("uid-7", "a@b.c", true, null, null));
         when(users.findByFirebaseUid("uid-7")).thenReturn(Optional.of(stored));
@@ -74,12 +74,13 @@ class AuthenticateUserServiceTest {
 
         service.authenticate("t");
 
-        Mockito.verify(users).save(stored.withSignInData("a@b.c", true, null));
+        Mockito.verify(users).save(stored);
+        assertThat(stored.emailVerified()).isTrue();
     }
 
     @Test
     void unchangedSignInDataIsNotWritten() {
-        User stored = new User(7L, PublicIds.MIN, "uid-7", "SwiftOtter", "a@b.c", true, null, null, Role.USER,
+        User stored = User.restore(7L, PublicIds.MIN, "uid-7", "SwiftOtter", "a@b.c", true, null, null, Role.USER,
                 CLOCK.instant());
         when(tokens.verify("t")).thenReturn(new VerifiedToken("uid-7", "a@b.c", true, null, null));
         when(users.findByFirebaseUid("uid-7")).thenReturn(Optional.of(stored));
@@ -90,7 +91,7 @@ class AuthenticateUserServiceTest {
     }
 
     private static User withId(User u) {
-        return new User(1L, u.publicId(), u.firebaseUid(), u.username(), u.email(), u.emailVerified(), u.photoUrl(),
+        return User.restore(1L, u.publicId(), u.firebaseUid(), u.username(), u.email(), u.emailVerified(), u.photoUrl(),
                 u.countryId(), u.role(), u.createdAt());
     }
 }

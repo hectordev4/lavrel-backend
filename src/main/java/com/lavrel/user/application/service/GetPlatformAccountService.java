@@ -1,5 +1,6 @@
 package com.lavrel.user.application.service;
 
+import com.lavrel.shared.domain.Platform;
 import com.lavrel.user.application.port.in.GetPlatformAccountUseCase;
 import com.lavrel.user.application.port.out.PlatformAccountRepositoryPort;
 import com.lavrel.user.domain.PlatformAccount;
@@ -28,6 +29,14 @@ public class GetPlatformAccountService implements GetPlatformAccountUseCase {
     @Override
     public List<PlatformAccountView> getByUserId(long userId) {
         return accounts.findByUserId(userId).stream().map(GetPlatformAccountService::toView).toList();
+    }
+
+    @Override
+    public PlatformAccountView getOwned(long userId, Platform platform, String externalId) {
+        return accounts.findByPlatformAndExternalId(platform, externalId)
+                .filter(account -> account.belongsTo(userId))
+                .map(GetPlatformAccountService::toView)
+                .orElseThrow(() -> new PlatformAccountNotFoundException(platform, externalId));
     }
 
     private static PlatformAccountView toView(PlatformAccount a) {

@@ -26,6 +26,7 @@ public class UpdateUserCountryService implements UpdateUserCountryUseCase {
         if (countryId != null && !countries.existsById(countryId)) {
             throw new CountryNotFoundException(countryId);
         }
-        users.save(user.withCountry(countryId));
+        user.changeCountry(countryId);
+        users.save(user);
     }
 }

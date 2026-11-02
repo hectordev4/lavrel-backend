@@ -52,8 +52,8 @@ class SteamGameWriter {
         tagNames.ensureNames(gameMetadata.tags());
 
         return tx.execute(status -> {
-            Game game = games.save(new Game(null, info.title(), info.coverImageUrl(),
-                    nullToEmpty(info.description()), storeUrl(appId), now));
+            Game game = games.save(Game.create(info.title(), info.coverImageUrl(), info.description(),
+                    storeUrl(appId), now));
             gameMappings.save(new GameMapping(null, game.id(), Platform.STEAM, appId, info.title()));
             achievements.saveAll(steamAchievements.stream()
                     .map(a -> new Achievement(null, game.id(), a.platformAchievementId(), a.name(),
@@ -73,14 +73,10 @@ class SteamGameWriter {
         GameMetadata gameMetadata = GameMetadataAssembler.assemble(info, item);
         tagNames.ensureNames(gameMetadata.tags());
         tx.executeWithoutResult(status -> {
-            games.save(new Game(game.id(), info.title(), info.coverImageUrl(), nullToEmpty(info.description()),
-                    storeUrl(appId), game.createdAt()));
+            game.refreshFromPlatform(info.title(), info.coverImageUrl(), info.description(), storeUrl(appId));
+            games.save(game);
             metadata.save(gameId, gameMetadata);
         });
-    }
-
-    private static String nullToEmpty(String value) {
-        return value == null ? "" : value;
     }
 
     private static String storeUrl(String steamAppId) {

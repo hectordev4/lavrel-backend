@@ -1,16 +1,17 @@
 package com.lavrel.user.adapter.out.persistence;
 
+import com.lavrel.shared.domain.Platform;
+import com.lavrel.user.adapter.out.persistence.mapper.PlatformAccountMapper;
+import com.lavrel.user.adapter.out.persistence.repository.PlatformAccountJpaRepository;
+import com.lavrel.user.application.port.out.PlatformAccountRepositoryPort;
+import com.lavrel.user.domain.AccountAlreadyLinkedException;
+import com.lavrel.user.domain.PlatformAccount;
 import java.util.List;
 import java.util.Optional;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import com.lavrel.user.adapter.out.persistence.mapper.PlatformAccountMapper;
-import com.lavrel.user.adapter.out.persistence.repository.PlatformAccountJpaRepository;
-import com.lavrel.user.application.port.out.PlatformAccountRepositoryPort;
-import com.lavrel.user.domain.AccountAlreadyLinkedException;
-import com.lavrel.user.domain.PlatformAccount;
 
 @Component
 public class PlatformAccountPersistenceAdapter implements PlatformAccountRepositoryPort {
@@ -28,6 +29,11 @@ public class PlatformAccountPersistenceAdapter implements PlatformAccountReposit
     @Transactional(readOnly = true)
     public Optional<PlatformAccount> findById(long id) {
         return repository.findById(id).map(PlatformAccountMapper::toDomain);
+    }
+
+    @Override
+    public Optional<PlatformAccount> findByPlatformAndExternalId(Platform platform, String externalId) {
+        return repository.findByPlatformAndExternalId(platform, externalId).map(PlatformAccountMapper::toDomain);
     }
 
     @Override
