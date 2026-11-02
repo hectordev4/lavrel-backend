@@ -24,6 +24,7 @@ public class MarkAccountSyncedService implements MarkAccountSyncedUseCase {
     public void markSynced(long platformAccountId) {
         PlatformAccount account = accounts.findById(platformAccountId)
                 .orElseThrow(() -> new PlatformAccountNotFoundException(platformAccountId));
-        accounts.save(account.markSynced(clock.instant()));
+        account.markSynced(clock.instant());
+        accounts.save(account);
     }
 }

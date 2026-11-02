@@ -43,15 +43,15 @@ public class AuthenticateUserService implements AuthenticateUserUseCase {
      * The public username is never touched here.
      */
     private User refreshProfile(User user, VerifiedToken token) {
-        if (!user.signInDataDiffers(token.email(), token.emailVerified(), token.photoUrl())) {
+        if (!user.syncSignIn(token.email(), token.emailVerified(), token.photoUrl())) {
             return user;
         }
-        return users.save(user.withSignInData(token.email(), token.emailVerified(), token.photoUrl()));
+        return users.save(user);
     }
 
     /** The starting name is a random friendly one: nothing from the sign-in account is shown to other people. */
     private User create(VerifiedToken token) {
-        return users.save(User.newcomer(publicIds.allocate(), token.uid(), usernames.generate(), token.email(),
+        return users.save(User.register(publicIds.allocate(), token.uid(), usernames.generate(), token.email(),
                 token.emailVerified(), token.photoUrl(), clock.instant()));
     }
 }

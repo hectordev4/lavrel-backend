@@ -1,5 +1,6 @@
 package com.lavrel.user.application.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -25,7 +26,7 @@ class ChangeUserRoleServiceTest {
     private final ChangeUserRoleService service = new ChangeUserRoleService(users);
 
     private static User user(long id, Role role) {
-        return new User(id, TARGET_PUBLIC_ID, "uid-" + id, "name", null, true, null, null, role, Instant.EPOCH);
+        return User.restore(id, TARGET_PUBLIC_ID, "uid-" + id, "name", null, true, null, null, role, Instant.EPOCH);
     }
 
     @Test
@@ -35,7 +36,8 @@ class ChangeUserRoleServiceTest {
 
         service.changeRole(1L, TARGET_PUBLIC_ID, Role.SUPPORT);
 
-        verify(users).save(target.withRole(Role.SUPPORT));
+        verify(users).save(target);
+        assertThat(target.role()).isEqualTo(Role.SUPPORT);
     }
 
     @Test

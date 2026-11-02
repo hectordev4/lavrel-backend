@@ -31,11 +31,12 @@ public class ChangeUserRoleService implements ChangeUserRoleUseCase {
         if (target.id() == actorUserId) {
             throw new InvalidRoleChangeException("You cannot change your own role; ask another admin");
         }
-        if (target.role() == role) {
+        Role previous = target.role();
+        if (!target.changeRole(role)) {
             return;
         }
-        users.save(target.withRole(role));
+        users.save(target);
         log.info("User {} changed the role of public id {} from {} to {}", actorUserId, targetPublicId,
-                target.role(), role);
+                previous, role);
     }
 }

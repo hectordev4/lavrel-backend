@@ -9,7 +9,7 @@ public final class PlatformAccountMapper {
     }
 
     public static PlatformAccount toDomain(PlatformAccountJpaEntity e) {
-        return new PlatformAccount(e.getId(), e.getUserId(), e.getPlatform(), e.getExternalId(), e.getDisplayName(),
+        return PlatformAccount.restore(e.getId(), e.getUserId(), e.getPlatform(), e.getExternalId(), e.getDisplayName(),
                 e.isVerified(), e.getVerifiedAt(), e.getLinkedAt(), e.getLastSyncedAt());
     }
 
