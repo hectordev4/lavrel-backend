@@ -72,7 +72,7 @@ public class PlatformLinkController {
         } catch (UserNotFoundException e) {
             return failure(platform, HttpStatus.NOT_FOUND, "user_not_found", e.getMessage());
         } catch (PlatformNotSupportedException e) {
-            return failure(platform, HttpStatus.UNPROCESSABLE_ENTITY, "platform_not_supported", e.getMessage());
+            return failure(platform, HttpStatus.UNPROCESSABLE_CONTENT, "platform_not_supported", e.getMessage());
         } catch (PlatformUnavailableException e) {
             return failure(platform, HttpStatus.BAD_GATEWAY, "platform_unavailable",
                     "The platform could not be reached. Try again in a moment.");
