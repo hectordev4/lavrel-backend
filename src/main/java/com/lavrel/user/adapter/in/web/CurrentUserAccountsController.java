@@ -24,12 +24,15 @@ public class CurrentUserAccountsController {
     @GetMapping
     public List<AccountResponse> listAccounts(@AuthenticationPrincipal AuthenticatedUser user) {
         return getPlatformAccounts.getByUserId(user.userId()).stream()
-                .map(a -> new AccountResponse(a.id(), a.platform(), a.externalId(), a.displayName(), a.lastSyncedAt()))
+                .map(a -> new AccountResponse(a.platform(), a.externalId(), a.displayName(), a.lastSyncedAt()))
                 .toList();
     }
 
-    /** lastSyncedAt is null until the first sync. */
-    public record AccountResponse(long id, Platform platform, String externalId, String displayName,
+    /**
+     * platform + externalId identify the account in the API (e.g. POST /accounts/steam/{externalId}/sync);
+     * the database id is never exposed. lastSyncedAt is null until the first sync.
+     */
+    public record AccountResponse(Platform platform, String externalId, String displayName,
                                   Instant lastSyncedAt) {
     }
 }
