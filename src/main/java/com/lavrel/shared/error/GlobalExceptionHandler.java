@@ -160,13 +160,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ProfilePrivateException.class)
     public ResponseEntity<ApiError> profilePrivate(ProfilePrivateException e) {
-        return error(HttpStatus.UNPROCESSABLE_ENTITY, "profile_private",
+        return error(HttpStatus.UNPROCESSABLE_CONTENT, "profile_private",
                 "The platform profile is private. Make the game details public and try again.");
     }
 
     @ExceptionHandler(PlatformNotSupportedException.class)
     public ResponseEntity<ApiError> platformNotSupported(PlatformNotSupportedException e) {
-        return error(HttpStatus.UNPROCESSABLE_ENTITY, "platform_not_supported", e.getMessage());
+        return error(HttpStatus.UNPROCESSABLE_CONTENT, "platform_not_supported", e.getMessage());
     }
 
     // ---------------------------------------------------------------- 502: platform failure
