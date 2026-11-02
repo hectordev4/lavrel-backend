@@ -2,6 +2,7 @@ package com.lavrel.progress.adapter.in.web;
 
 import com.lavrel.progress.application.port.in.GetAchievementStatsUseCase;
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase.AuthenticatedUser;
+import jakarta.validation.constraints.Positive;
 import java.util.List;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,16 +25,20 @@ public class GameStatsController {
     }
 
     @GetMapping("/{gameId}/stats")
-    public List<AchievementStatsResponse> getGameStats(@AuthenticationPrincipal AuthenticatedUser user,
-                                                       @PathVariable("gameId") long gameId) {
-        return getAchievementStats.getGameStats(gameId, user.userId()).stream()
+    public GameStatsResponse getGameStats(@AuthenticationPrincipal AuthenticatedUser user,
+                                          @PathVariable("gameId") @Positive long gameId) {
+        return new GameStatsResponse(gameId, getAchievementStats.getGameStats(gameId, user.userId()).stream()
                 .map(s -> new AchievementStatsResponse(s.achievementId(), round(s.globalPercent()),
                         s.countryId(), s.countryPercent() == null ? null : round(s.countryPercent())))
-                .toList();
+                .toList());
     }
 
     private static double round(double percent) {
         return Math.round(percent * 10.0) / 10.0;
+    }
+
+    /** Wrapped in an object so fields (sample size, paging...) can be added later without breaking clients. */
+    public record GameStatsResponse(long gameId, List<AchievementStatsResponse> achievements) {
     }
 
     public record AchievementStatsResponse(long achievementId, double globalPercent,
