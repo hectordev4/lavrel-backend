@@ -3,6 +3,7 @@ package com.lavrel.catalog.application.port.out;
 import com.lavrel.shared.domain.Platform;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Optional;
 import java.util.Set;
 
 /** Remembers platform apps that could not be imported as a game, so they are not asked for again. */
@@ -16,4 +17,10 @@ public interface ImportFailureRepositoryPort {
                                 Collection<String> ignoredReasons);
 
     void recordFailure(Platform platform, String platformGameId, String reason, Instant at);
+
+    /** The remembered reason, if this app failed before. */
+    Optional<String> findReason(Platform platform, String platformGameId);
+
+    /** Forgets a remembered failure, so the app is tried again (used for content-policy exceptions). */
+    void clearFailure(Platform platform, String platformGameId);
 }

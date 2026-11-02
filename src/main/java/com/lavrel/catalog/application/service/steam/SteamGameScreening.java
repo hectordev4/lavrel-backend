@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
  *  - cheap check: the store item fetched 25 at a time already has the type, content descriptors and tag
  *    weights, so every content rule runs here before any per-game call is spent;
  *  - full check: again with the store page, which adds its genres and its own descriptor list.
+ * applyContentPolicy is false only for games an admin exempted: they still have to be real games.
  */
 @Component
 class SteamGameScreening {
@@ -34,16 +35,23 @@ class SteamGameScreening {
 
     /** @param popularityRequired also reject games with fewer than app.catalog.min-reviews reviews */
     Optional<String> cheapRejection(String appId, StoreItem item, boolean popularityRequired) {
+        return cheapRejection(appId, item, popularityRequired, true);
+    }
+
+    Optional<String> cheapRejection(String appId, StoreItem item, boolean popularityRequired,
+                                    boolean applyContentPolicy) {
         if (item == null || !item.found()) {
             return Optional.of(NOT_FOUND);
         }
         if (!"game".equals(item.type())) {
             return Optional.of("type: " + item.type());
         }
-        Optional<String> policy = contentPolicy.evaluate(new GameSignals(appIdOf(appId), item.type(),
-                item.contentDescriptorIds(), item.tags(), List.of()));
-        if (policy.isPresent()) {
-            return policy;
+        if (applyContentPolicy) {
+            Optional<String> policy = contentPolicy.evaluate(new GameSignals(appIdOf(appId), item.type(),
+                    item.contentDescriptorIds(), item.tags(), List.of()));
+            if (policy.isPresent()) {
+                return policy;
+            }
         }
         if (popularityRequired && minReviews > 0
                 && (item.reviewCount() == null || item.reviewCount() < minReviews)) {
@@ -53,8 +61,15 @@ class SteamGameScreening {
     }
 
     Optional<String> fullRejection(String appId, PlatformGameInfo info, StoreItem item) {
+        return fullRejection(appId, info, item, true);
+    }
+
+    Optional<String> fullRejection(String appId, PlatformGameInfo info, StoreItem item, boolean applyContentPolicy) {
         if (info.type() != null && !"game".equals(info.type())) {
             return Optional.of("type: " + info.type());
+        }
+        if (!applyContentPolicy) {
+            return Optional.empty();
         }
         return contentPolicy.evaluate(new GameSignals(appIdOf(appId), info.type(),
                 info.contentDescriptorIds(),

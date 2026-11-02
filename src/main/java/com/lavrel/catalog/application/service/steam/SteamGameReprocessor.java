@@ -1,5 +1,6 @@
 package com.lavrel.catalog.application.service.steam;
 
+import com.lavrel.catalog.application.port.out.ContentExemptionRepositoryPort;
 import com.lavrel.catalog.application.port.out.GameMappingRepositoryPort;
 import com.lavrel.catalog.application.port.out.GameRepositoryPort;
 import com.lavrel.catalog.application.port.out.ImportFailureRepositoryPort;
@@ -15,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,7 +26,7 @@ import org.springframework.stereotype.Component;
  * Re-reads the Steam data of games that are already in the catalog: one batched call for the cheap data, one
  * store-page call per game. Games that pass get their details (re)written and are published; the others are
  * removed and the reason is remembered. Enrichment and refresh both use it; they only differ in which games
- * they pick.
+ * they pick. Games an admin exempted skip the content policy, so a refresh never removes them for it.
  */
 @Component
 class SteamGameReprocessor {
@@ -36,6 +38,7 @@ class SteamGameReprocessor {
     private final GameRepositoryPort games;
     private final GameMappingRepositoryPort gameMappings;
     private final ImportFailureRepositoryPort failures;
+    private final ContentExemptionRepositoryPort exemptions;
     private final SteamGameScreening screening;
     private final SteamGameWriter writer;
     private final Clock clock;
@@ -43,12 +46,14 @@ class SteamGameReprocessor {
 
     SteamGameReprocessor(List<PlatformCatalogPort> catalogPorts, GameRepositoryPort games,
                          GameMappingRepositoryPort gameMappings, ImportFailureRepositoryPort failures,
-                         SteamGameScreening screening, SteamGameWriter writer, Clock clock,
+                         ContentExemptionRepositoryPort exemptions, SteamGameScreening screening,
+                         SteamGameWriter writer, Clock clock,
                          @Value("${app.catalog.import-delay-ms:300}") long delayMs) {
         this.steam = SteamCatalogPorts.steam(catalogPorts);
         this.games = games;
         this.gameMappings = gameMappings;
         this.failures = failures;
+        this.exemptions = exemptions;
         this.screening = screening;
         this.writer = writer;
         this.clock = clock;
@@ -73,6 +78,7 @@ class SteamGameReprocessor {
         }
 
         List<String> appIds = List.copyOf(appIdByGame.values());
+        Set<Long> exempt = exemptions.findExemptGameIds(appIdByGame.keySet());
         Map<String, StoreItem> items = new HashMap<>();
         int fetchedUpTo = 0;
         int index = 0;
@@ -87,12 +93,13 @@ class SteamGameReprocessor {
                 }
                 StoreItem item = items.get(appId);
                 PlatformGameInfo info = null;
-                Optional<String> rejection = screening.cheapRejection(appId, item, false);
+                boolean applyPolicy = !exempt.contains(gameId);
+                Optional<String> rejection = screening.cheapRejection(appId, item, false, applyPolicy);
                 if (rejection.isEmpty()) {
                     info = steam.fetchGameInfo(appId).orElse(null);
                     rejection = info == null
                             ? Optional.of(SteamGameScreening.NOT_FOUND)
-                            : screening.fullRejection(appId, info, item);
+                            : screening.fullRejection(appId, info, item, applyPolicy);
                 }
                 if (rejection.isPresent()) {
                     failures.recordFailure(Platform.STEAM, appId, rejection.get(), clock.instant());

@@ -6,6 +6,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -59,5 +60,23 @@ public class ImportFailureJdbcAdapter implements ImportFailureRepositoryPort {
                 .addValue("id", platformGameId)
                 .addValue("reason", reason.length() > 255 ? reason.substring(0, 255) : reason)
                 .addValue("at", Timestamp.from(at)));
+    }
+
+    @Override
+    public Optional<String> findReason(Platform platform, String platformGameId) {
+        return jdbc.queryForList("""
+                SELECT reason FROM catalog_import_failure
+                WHERE platform = :platform AND platform_game_id = :id
+                """, new MapSqlParameterSource()
+                .addValue("platform", platform.name())
+                .addValue("id", platformGameId), String.class).stream().findFirst();
+    }
+
+    @Override
+    public void clearFailure(Platform platform, String platformGameId) {
+        jdbc.update("DELETE FROM catalog_import_failure WHERE platform = :platform AND platform_game_id = :id",
+                new MapSqlParameterSource()
+                        .addValue("platform", platform.name())
+                        .addValue("id", platformGameId));
     }
 }

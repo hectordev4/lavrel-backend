@@ -50,4 +50,13 @@ class SteamGameScreeningTest {
     void fullCheckSeesExcludedGenres() {
         assertThat(screening.fullRejection("1", gameInfo("1", "game", Map.of(99, "Hentai")), game("1"))).isPresent();
     }
+
+    @Test
+    void exemptGamesSkipTheContentPolicyButMustStillBeGames() {
+        var adult = storeItem("1", "game", 1000, List.of(3));
+        assertThat(screening.cheapRejection("1", adult, false, false)).isEmpty();
+        assertThat(screening.fullRejection("1", gameInfo("1", "game", Map.of(99, "Hentai")), adult, false)).isEmpty();
+        assertThat(screening.cheapRejection("1", storeItem("1", "dlc", 1000, List.of(3)), false, false))
+                .contains("type: dlc");
+    }
 }
