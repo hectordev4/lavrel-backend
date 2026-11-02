@@ -106,7 +106,8 @@ class SteamImportRun {
                     fetchedUpTo = candidateIndex + chunk.size();
                 }
                 StoreItem item = items.get(appId);
-                Optional<String> cheapRejection = screening.cheapRejection(appId, item, mode.popularityRequired());
+                Optional<String> cheapRejection = screening.cheapRejection(appId, item, mode.popularityRequired(),
+                        mode.contentPolicyApplied());
                 if (cheapRejection.isPresent()) {
                     failures.recordFailure(Platform.STEAM, appId, cheapRejection.get(), now);
                     notImportable++;
@@ -117,7 +118,7 @@ class SteamImportRun {
                     }
                     attempts++;
                     try {
-                        Optional<Long> gameId = importOne(appId, item);
+                        Optional<Long> gameId = importOne(appId, item, mode);
                         if (gameId.isPresent()) {
                             imported.put(appId, gameId.get());
                         } else {
@@ -144,7 +145,7 @@ class SteamImportRun {
      * Cheapest per-game check first (the achievement schema comes from the generous API), then the store page.
      * @return the new game id, or empty if the app is not importable (the reason is remembered)
      */
-    private Optional<Long> importOne(String appId, StoreItem item) {
+    private Optional<Long> importOne(String appId, StoreItem item, ImportMode mode) {
         Instant now = clock.instant();
         List<PlatformAchievement> steamAchievements = steam.fetchAchievements(appId);
         if (steamAchievements.isEmpty()) {
@@ -156,7 +157,7 @@ class SteamImportRun {
             failures.recordFailure(Platform.STEAM, appId, SteamGameScreening.NOT_FOUND, now);
             return Optional.empty();
         }
-        Optional<String> rejection = screening.fullRejection(appId, info, item);
+        Optional<String> rejection = screening.fullRejection(appId, info, item, mode.contentPolicyApplied());
         if (rejection.isPresent()) {
             failures.recordFailure(Platform.STEAM, appId, rejection.get(), now);
             return Optional.empty();

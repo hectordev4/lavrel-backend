@@ -126,4 +126,15 @@ class SteamImportRunTest {
         assertThat(result.deferred()).isEqualTo(2);
         verify(failures, never()).recordFailure(any(), anyString(), anyString(), any());
     }
+
+    @Test
+    void exemptModeImportsAGameThePolicyWouldReject() {
+        when(steam.fetchStoreItems(List.of("2767030")))
+                .thenReturn(Map.of("2767030", storeItem("2767030", "game", 1000, List.of(3))));
+        goodGame("2767030", 9L);
+
+        SteamImportRun.Result result = importRun.run(List.of("2767030"), 10, ImportMode.EXEMPT, 0);
+
+        assertThat(result.imported()).containsEntry("2767030", 9L);
+    }
 }
