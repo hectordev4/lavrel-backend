@@ -1,3 +1,7 @@
+server:
+  # Cloud Run (and most container hosts) tell the app which port to use in PORT; 8080 locally.
+  port: ${PORT:8080}
+
 spring:
   application:
     name: lavrel-backend
