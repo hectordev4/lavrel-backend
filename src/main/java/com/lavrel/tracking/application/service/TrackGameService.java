@@ -6,6 +6,7 @@ import com.lavrel.tracking.application.port.in.TrackGameUseCase;
 import com.lavrel.tracking.application.port.out.TrackedGameCardQueryPort;
 import com.lavrel.tracking.application.port.out.TrackedGameRepositoryPort;
 import com.lavrel.tracking.domain.GameNotTrackedException;
+import com.lavrel.tracking.domain.QuickAccess;
 import com.lavrel.tracking.domain.TrackedGame;
 import com.lavrel.tracking.domain.TrackingStatus;
 import java.time.Clock;
@@ -47,8 +48,10 @@ public class TrackGameService implements TrackGameUseCase {
     @Override
     @Transactional
     public void untrack(long userId, long gameId) {
-        if (!trackedGames.delete(userId, gameId)) {
-            throw new GameNotTrackedException(gameId);
+        TrackedGame entry = trackedGames.find(userId, gameId).orElseThrow(() -> new GameNotTrackedException(gameId));
+        trackedGames.delete(userId, gameId);
+        if (entry.pinned()) {
+            trackedGames.saveAll(QuickAccess.closeGaps(trackedGames.findPinned(userId), clock.instant()));
         }
     }
 }

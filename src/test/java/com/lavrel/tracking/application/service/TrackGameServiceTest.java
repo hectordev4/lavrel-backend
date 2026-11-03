@@ -73,8 +73,21 @@ class TrackGameServiceTest {
 
     @Test
     void untrackingAGameThatIsNotTrackedIs404() {
-        when(repo.delete(1L, 7L)).thenReturn(false);
+        when(repo.find(1L, 7L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.untrack(1L, 7L)).isInstanceOf(GameNotTrackedException.class);
+    }
+
+    @Test
+    void untrackingAPinnedGameClosesTheGapInQuickAccess() {
+        when(repo.find(1L, 7L)).thenReturn(Optional.of(TrackedGame.restore(1L, 7L, TrackingStatus.PLAYING, 1, NOW, NOW)));
+        TrackedGame second = TrackedGame.restore(1L, 8L, TrackingStatus.PLAYING, 2, NOW, NOW);
+        when(repo.findPinned(1L)).thenReturn(List.of(second));
+
+        service.untrack(1L, 7L);
+
+        verify(repo).delete(1L, 7L);
+        verify(repo).saveAll(List.of(second));
+        assertThat(second.pinPosition()).isEqualTo(1);
     }
 }
