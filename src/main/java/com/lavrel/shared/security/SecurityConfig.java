@@ -40,8 +40,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/platforms/*/callback", "/api/steam/callback").permitAll()
                         // Reachable before the e-mail is verified: the own profile (to show "check your inbox")
                         // and the dev-only verification shortcut (absent unless app.dev.verify-email-uids is set).
-                        // Public catalog: search and game pages, no login needed. Only published SFW games.
-                        .requestMatchers(HttpMethod.GET, "/api/games", "/api/games/*").permitAll()
+                        // Public catalog: search, filter options and game pages, no login needed. Only published SFW games.
+                        .requestMatchers(HttpMethod.GET, "/api/games", "/api/games/*", "/api/search", "/api/tags",
+                                "/api/creators").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/currentuser").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/dev/verify-my-email").authenticated()
                         // Role from the users table; only granted together with a verified e-mail.
