@@ -1,0 +1,1854 @@
+{
+  "info": {
+    "_postman_id": "acc433b7-2c9c-41e4-9f61-118107328510",
+    "name": "Lavrel backend",
+    "description": "Fill the collection variables firebaseApiKey, email and password (Current value column), then run request 1 first.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "59001787"
+  },
+  "item": [
+    {
+      "name": "1. Sign in to Firebase (gets idToken)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Got an idToken\", function () { pm.expect(json.idToken).to.be.a(\"string\"); });",
+              "pm.collectionVariables.set(\"idToken\", json.idToken);",
+              "console.log(\"Firebase uid (localId):\", json.localId);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"returnSecureToken\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={{firebaseApiKey}}",
+          "protocol": "https",
+          "host": [
+            "identitytoolkit",
+            "googleapis",
+            "com"
+          ],
+          "path": [
+            "v1",
+            "accounts:signInWithPassword"
+          ],
+          "query": [
+            {
+              "key": "key",
+              "value": "{{firebaseApiKey}}"
+            }
+          ]
+        },
+        "description": "Run this first. It saves the Firebase ID token into the idToken collection variable. The token expires after about an hour: run this request again when you get 401. If the account's e-mail is not verified yet, every endpoint except 2 answers 403 email_not_verified: for a test address that cannot receive mail, run 26 once, then run this request again to get a token with email_verified = true."
+      },
+      "response": []
+    },
+    {
+      "name": "2. Current user (own profile: publicId, username, e-mail, emailVerified, role, country)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Has firebaseUid\", function () { pm.expect(pm.response.json().firebaseUid).to.be.a(\"string\"); });",
+              "const me = pm.response.json();",
+              "pm.test(\"Has a 16-digit publicId\", function () { pm.expect(String(me.publicId)).to.have.lengthOf(16); });",
+              "pm.test(\"Has emailVerified and role\", function () { pm.expect(me.emailVerified).to.be.a(\"boolean\"); pm.expect(me.role).to.be.oneOf([\"USER\", \"SUPPORT\", \"ADMIN\"]); });",
+              "if (!me.emailVerified) { console.log(\"E-mail not verified: every other endpoint will answer 403 email_not_verified.\"); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "3. List countries",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Has countries\", function () { pm.expect(pm.response.json().countries.length).to.be.above(0); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/countries",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "countries"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "4. Set country",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"countryId\": 1\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/country",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "country"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "5. Set unknown country (expect 400)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"countryId\": 9999\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/country",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "country"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "6. Clear country",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"countryId\": null\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/country",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "country"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "7. List linked accounts (saves platform + externalId; shows lastSyncedAt)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "const accounts = pm.response.json();",
+              "pm.test(\"No database ids exposed\", function () { accounts.forEach(a => pm.expect(a).to.not.have.property(\"id\")); });",
+              "if (accounts.length > 0) {",
+              "  pm.collectionVariables.set(\"accountPlatform\", accounts[0].platform.toLowerCase());",
+              "  pm.collectionVariables.set(\"accountExternalId\", accounts[0].externalId);",
+              "  console.log(\"Will sync\", accounts[0].platform, accounts[0].externalId);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/accounts",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "accounts"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "8. Sync linked account (can take a minute; run again while gamesPending > 0)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/accounts/{{accountPlatform}}/{{accountExternalId}}/sync",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "accounts",
+            "{{accountPlatform}}",
+            "{{accountExternalId}}",
+            "sync"
+          ]
+        },
+        "description": "Run 7 first: it saves the account's platform and external id (SteamID64). The database id is never used in URLs."
+      },
+      "response": []
+    },
+    {
+      "name": "9. Game stats for game 1",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Wrapped list of achievements\", function () { pm.expect(pm.response.json().achievements).to.be.an(\"array\"); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/games/1/stats",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games",
+            "1",
+            "stats"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "10. No token (expect 401)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "11. Start Steam link (open redirectUrl in a browser)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(\"Open this URL in your browser:\", pm.response.json().redirectUrl);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/accounts/steam/link",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "accounts",
+            "steam",
+            "link"
+          ]
+        },
+        "description": "Copy redirectUrl from the response and open it in a browser. Log in at Steam; the browser returns to the backend callback. The path is /accounts/{platform}/link: steam works today, xbox and psn once their adapters exist (see 22)."
+      },
+      "response": []
+    },
+    {
+      "name": "12. Admin: seed catalog from Steam (top 100 most played)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"limit\": 100\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/steam/seed",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "steam",
+            "seed"
+          ]
+        },
+        "description": "Admin only (your UID in ADMIN_FIREBASE_UIDS). Imports the most played Steam games with their achievements and descriptions. Slow on purpose (a pause between Steam calls): expect a few minutes. Known games and known failures cost no Steam call, so it is safe to run again."
+      },
+      "response": []
+    },
+    {
+      "name": "13. Admin: seed catalog with specific Steam app ids",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"appIds\": [\"570\", \"730\", \"440\"]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/steam/seed",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "steam",
+            "seed"
+          ]
+        },
+        "description": "Use this if the most-played chart is unavailable."
+      },
+      "response": []
+    },
+    {
+      "name": "14. Admin: create fake players (needs FAKE_DATA_ENABLED=true)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"users\": 50,\n  \"gamesPerUser\": 15\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/dev/fake-data",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "dev",
+            "fake-data"
+          ]
+        },
+        "description": "Creates fake users (firebase_uid starting with fake-), each with a Steam account, random games from the catalog and random unlocks. Seed the catalog first."
+      },
+      "response": []
+    },
+    {
+      "name": "15. Admin: delete all fake players",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/dev/fake-data",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "dev",
+            "fake-data"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "16. Game details (description, tags, creators, features, ratings)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/games/1",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games",
+            "1"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "17. Admin: seed NEXT batch of Steam games (run in the Collection Runner)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code !== 200) {",
+              "    console.log(\"Seeding stopped: HTTP \" + pm.response.code + \" \" + pm.response.text());",
+              "    postman.setNextRequest(null);",
+              "} else {",
+              "    const r = pm.response.json();",
+              "    pm.collectionVariables.set(\"seedCursor\", String(r.nextCursor));",
+              "    console.log(\"attempted \" + r.attempted + \" | imported \" + r.imported + \" | already known \" + r.alreadyKnown",
+              "        + \" | skipped (remembered) \" + r.skippedKnownFailures + \" | next cursor \" + r.nextCursor + \" | more: \" + r.hasMore);",
+              "    if (!r.hasMore) { console.log(\"Reached the end of the Steam game list.\"); postman.setNextRequest(null); }",
+              "    if (r.stoppedEarly) { console.log(\"Steam stopped answering; cursor kept. Run again later.\"); postman.setNextRequest(null); }",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cursor\": {{seedCursor}},\n  \"limit\": 100\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/steam/seed-next",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "steam",
+            "seed-next"
+          ]
+        },
+        "description": "Walks Steam's full game list in appid order and imports up to `limit` games that have achievements. The script stores nextCursor in the seedCursor variable, so each run continues where the last one stopped. To let it run unattended: Runner -> select ONLY this request -> Iterations 20 -> Delay 5000 ms -> Run. The run stops by itself at the end of the list or if Steam stops answering."
+      },
+      "response": []
+    },
+    {
+      "name": "18. Reset the seed cursor to 0 (start the walk over)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set(\"seedCursor\", \"0\");",
+              "console.log(\"seedCursor reset to 0\");"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/actuator/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "actuator",
+            "health"
+          ]
+        },
+        "description": "Only sets seedCursor back to 0. Starting over is cheap: games already imported and apps already rejected cost no Steam calls."
+      },
+      "response": []
+    },
+    {
+      "name": "19. Admin: enrich existing games with details / remove adult content (run in the Collection Runner)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code !== 200) {",
+              "    console.log(\"Enrichment stopped: HTTP \" + pm.response.code + \" \" + pm.response.text());",
+              "    postman.setNextRequest(null);",
+              "} else {",
+              "    const r = pm.response.json();",
+              "    console.log(\"checked \" + r.checked + \" | removed \" + r.removed + \" | still pending \" + r.remaining);",
+              "    if (r.remaining === 0) { console.log(\"All games are enriched.\"); postman.setNextRequest(null); }",
+              "    if (r.stoppedEarly) { console.log(\"Steam stopped answering. Run again later.\"); postman.setNextRequest(null); }",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"limit\": 50\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/steam/enrich",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "steam",
+            "enrich"
+          ]
+        },
+        "description": "Games imported before the details existed are hidden until enriched. Each call takes up to `limit` of them: one batched call fetches their tags, creators, reviews and categories, then one store-page call per game. Safe games get their details and are published; adult ones (judged by tags with weights, age rating, descriptors) and games Steam no longer knows are removed with their achievements and unlocks. Runner -> select ONLY this request -> Iterations 20 -> Delay 3000 ms. It stops by itself when nothing is pending."
+      },
+      "response": []
+    },
+    {
+      "name": "20. Admin: refresh game details from Steam - manual sync (run in the Collection Runner)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code !== 200) {",
+              "    console.log(\"Refresh stopped: HTTP \" + pm.response.code + \" \" + pm.response.text());",
+              "    postman.setNextRequest(null);",
+              "} else {",
+              "    const r = pm.response.json();",
+              "    console.log(\"refreshed \" + r.refreshed + \" | removed \" + r.removed + \" | still due \" + r.remaining);",
+              "    if (r.remaining === 0) { console.log(\"Everything is up to date.\"); postman.setNextRequest(null); }",
+              "    if (r.stoppedEarly) { console.log(\"Steam stopped answering. Run again later.\"); postman.setNextRequest(null); }",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"olderThanDays\": 30,\n  \"limit\": 50,\n  \"refreshTagNames\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/steam/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "steam",
+            "refresh"
+          ]
+        },
+        "description": "Re-copies tags, genres and details from Steam for published games. Tags and genres never change on their own: only this call changes them. Games stay visible while they are refreshed; a game that no longer passes the content policy is removed. With olderThanDays it takes the games not refreshed in that time (or never: right after migration V10 that is every game, so run it once to fill the genres). Send {\"appIds\": [\"292030\"]} instead to refresh specific games. Set refreshTagNames to true to also replace the stored tag names. Runner -> select ONLY this request -> Iterations 20 -> Delay 3000 ms. It stops by itself when nothing is due."
+      },
+      "response": []
+    },
+    {
+      "name": "21. Set my username",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"Héctor K.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/username",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "username"
+          ]
+        },
+        "description": "A free display name: 2-32 characters, letters of any alphabet, digits, spaces and _ . - ' ! ? & # ( ) [ ]. Not unique (people are told apart by publicId). Names posing as staff (admin, support, lavrel...) are rejected with 400 invalid_username."
+      },
+      "response": []
+    },
+    {
+      "name": "22. Start Xbox link (expect 422 platform_not_supported)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 422\", function () { pm.response.to.have.status(422); });",
+              "pm.test(\"Error code is platform_not_supported\", function () { pm.expect(pm.response.json().error).to.eql(\"platform_not_supported\"); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/accounts/xbox/link",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "accounts",
+            "xbox",
+            "link"
+          ]
+        },
+        "description": "Xbox is a known platform but has no identity adapter yet. Once an Xbox adapter exists, this returns 200 with a redirectUrl, like request 11."
+      },
+      "response": []
+    },
+    {
+      "name": "23. Unknown platform (expect 400 invalid_parameter)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+              "pm.test(\"Error code is invalid_parameter\", function () { pm.expect(pm.response.json().error).to.eql(\"invalid_parameter\"); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/accounts/nintendo/link",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "accounts",
+            "nintendo",
+            "link"
+          ]
+        },
+        "description": "Platform names in URLs are steam, xbox or psn (any case). Anything else is rejected before reaching the use case."
+      },
+      "response": []
+    },
+    {
+      "name": "24. Admin: invalid seed body (expect 400 validation_failed with details)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+              "pm.test(\"Error code is validation_failed\", function () { pm.expect(pm.response.json().error).to.eql(\"validation_failed\"); });",
+              "const details = pm.response.json().details;",
+              "pm.test(\"One problem per invalid field\", function () { pm.expect(details.map(d => d.field)).to.include.members([\"limit\", \"appIds[0]\"]); });",
+              "console.log(details);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/steam/seed",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "steam",
+            "seed"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"limit\": 500,\n  \"appIds\": [\"abc\"]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "limit must be 1-200 and app ids numeric. Before the validation pass these were clamped or skipped silently; now the whole request is rejected and nothing is imported."
+      },
+      "response": []
+    },
+    {
+      "name": "25. Platform callback without a state (expect 400, or 302 with a frontend)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Rejected: 400 JSON, or 302 to the frontend error page\", function () { pm.expect(pm.response.code).to.be.oneOf([400, 302]); });",
+              "if (pm.response.code === 400) { pm.test(\"Error code is invalid_identity_proof\", function () { pm.expect(pm.response.json().error).to.eql(\"invalid_identity_proof\"); }); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/platforms/steam/callback",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "platforms",
+            "steam",
+            "callback"
+          ]
+        },
+        "description": "The new generic callback path (public: platforms redirect the browser here without our token). Without the signed state the link is refused. With app.frontend.base-url set, the browser is redirected to {base}/steam/linked?status=error instead. /api/steam/callback still works the same."
+      },
+      "response": []
+    },
+    {
+      "name": "26. DEV (run once, right after 1): mark my test e-mail as verified",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Verified (200), or already done (409)\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 409]); });",
+              "if (pm.response.code === 200) { console.log(\"Done. Run request 1 again to get a token with email_verified = true.\"); }",
+              "if (pm.response.code === 404) { console.log(\"Not enabled for this account: set app.dev.verify-email-uids to its Firebase UID and restart.\"); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/dev/verify-my-email",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "dev",
+            "verify-my-email"
+          ]
+        },
+        "description": "For test accounts whose e-mail cannot receive the verification link. Only exists while app.dev.verify-email-uids is set, only works for the Firebase UIDs listed there and only on your own account, and refuses (409) once the e-mail is verified. Steps: set the property to your UID, restart, run 1, run this, run 1 again, then remove the property and restart."
+      },
+      "response": []
+    },
+    {
+      "name": "27. Admin: change a user's role",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/users/{{targetPublicId}}/role",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "users",
+            "{{targetPublicId}}",
+            "role"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"SUPPORT\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Roles: USER, SUPPORT, ADMIN. Set the targetPublicId variable to the user's publicId (request 2 shows yours). Changing your own role is refused with 400 invalid_role_change. The first admin is promoted in the database: UPDATE users SET role = 'ADMIN' WHERE firebase_uid = '<your UID>';"
+      },
+      "response": []
+    },
+    {
+      "name": "28. Admin: content-policy exception (Marvel Rivals)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "const results = pm.response.json().results;",
+              "pm.test(\"Marvel Rivals exempted or imported\", function () { pm.expect(results[0].status).to.be.oneOf([\"EXEMPTED\", \"IMPORTED\"]); });",
+              "console.log(results);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/steam/exceptions",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "steam",
+            "exceptions"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"appIds\": [\"2767030\"]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Lets games the content policy would reject into the catalog. Marvel Rivals (2767030) has the Hentai and Sexual Content tags with enough weight to be rejected. Per app: EXEMPTED (already in the catalog, now flagged), IMPORTED (imported now without the policy), NOT_IMPORTABLE (still not a catalog game, e.g. no achievements; see reason) or DEFERRED (Steam unreachable, try again). Exempt games are never removed by enrich or refresh for content reasons."
+      },
+      "response": []
+    },
+    {
+      "name": "29. Admin: list content-policy exceptions",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json().exceptions);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/steam/exceptions",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "steam",
+            "exceptions"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "30. Admin: remove a content-policy exception",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Removed (204) or not in the catalog (404)\", function () { pm.expect(pm.response.code).to.be.oneOf([204, 404]); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/steam/exceptions/2767030",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "steam",
+            "exceptions",
+            "2767030"
+          ]
+        },
+        "description": "The game stays for now; the next refresh judges it by the content policy again (and removes it if it fails). Run 28 again to restore the exception."
+      },
+      "response": []
+    },
+    {
+      "name": "31. Tracking: track a game (or change its status)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/tracked/{{trackGameId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "tracked",
+            "{{trackGameId}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"PLAYING\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Status: PLAYING, BACKLOG, COMPLETED or DROPPED. Any catalog game can be tracked (synced games are in the catalog). Set the trackGameId variable to a game id."
+      },
+      "response": []
+    },
+    {
+      "name": "32. Tracking: my list (newest release first)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Has games\", function () { pm.expect(pm.response.json().games).to.be.an(\"array\"); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/tracked?sort=release",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "tracked"
+          ],
+          "query": [
+            {
+              "key": "sort",
+              "value": "release"
+            }
+          ]
+        },
+        "description": "sort: release (default, newest store release first), title or updated. Each card has progress and the 3 easiest locked achievements."
+      },
+      "response": []
+    },
+    {
+      "name": "33. Tracking: only games I'm playing",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/tracked?status=playing",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "tracked"
+          ],
+          "query": [
+            {
+              "key": "status",
+              "value": "playing"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "34. Tracking: remove a game",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Removed (204) or not tracked (404)\", function () { pm.expect(pm.response.code).to.be.oneOf([204, 404]); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/tracked/{{trackGameId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "tracked",
+            "{{trackGameId}}"
+          ]
+        },
+        "description": "Also takes it out of quick access. Run 31 again to add it back."
+      },
+      "response": []
+    },
+    {
+      "name": "35. Quick access: pin a tracked game",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/tracked/{{trackGameId}}/pin",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "tracked",
+            "{{trackGameId}}",
+            "pin"
+          ]
+        },
+        "description": "Pins at the end. At most 20 games: the 21st answers 409 quick_access_full. The game must be tracked first (31)."
+      },
+      "response": []
+    },
+    {
+      "name": "36. Quick access: my pinned games",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/tracked/quick-access",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "tracked",
+            "quick-access"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "37. Quick access: reorder",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/tracked/quick-access",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "tracked",
+            "quick-access"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"gameIds\": [{{trackGameId}}]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "List every pinned game exactly once, in the new order; anything else is 400 invalid_quick_access_order."
+      },
+      "response": []
+    },
+    {
+      "name": "38. Quick access: unpin",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/tracked/{{trackGameId}}/pin",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "tracked",
+            "{{trackGameId}}",
+            "pin"
+          ]
+        },
+        "description": "The game stays in the tracking list."
+      },
+      "response": []
+    },
+    {
+      "name": "39. Search: most popular games (public)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Has games and hasMore\", function () { const j = pm.response.json(); pm.expect(j.games).to.be.an(\"array\"); pm.expect(j.hasMore).to.be.a(\"boolean\"); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/games?sort=popular&size=10",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games"
+          ],
+          "query": [
+            {
+              "key": "sort",
+              "value": "popular"
+            },
+            {
+              "key": "size",
+              "value": "10"
+            }
+          ]
+        },
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "No login needed. sort: relevance (default with q), popular (default without q), rating, newest, name. page from 0, size up to 50."
+      },
+      "response": []
+    },
+    {
+      "name": "40. Search: by name with a typo",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/games?q=witcer",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "witcer"
+            }
+          ]
+        },
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "Typo tolerant and accent insensitive: 'witcer' finds The Witcher, 'pokemon' finds Pokémon."
+      },
+      "response": []
+    },
+    {
+      "name": "41. Search: with filters (tag + mode)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/games?tag={{searchTagId}}&mode=co-op&sort=rating",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games"
+          ],
+          "query": [
+            {
+              "key": "tag",
+              "value": "{{searchTagId}}"
+            },
+            {
+              "key": "mode",
+              "value": "co-op"
+            },
+            {
+              "key": "sort",
+              "value": "rating"
+            }
+          ]
+        },
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "Take a tag id from 43. Several tags (tag=1,2) and modes must ALL apply. Also franchise=, developer=, publisher= with ids from 44."
+      },
+      "response": []
+    },
+    {
+      "name": "42. Quick search (type-ahead)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Grouped results\", function () { const j = pm.response.json(); pm.expect(j).to.have.all.keys(\"games\", \"tags\", \"franchises\"); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/search?q=witch",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "search"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "witch"
+            }
+          ]
+        },
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "5 games, 5 tags and 3 franchises for the header dropdown. q needs at least 2 characters."
+      },
+      "response": []
+    },
+    {
+      "name": "43. Filter options: tags",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "const tags = pm.response.json().tags;",
+              "if (tags.length > 0) { pm.collectionVariables.set(\"searchTagId\", String(tags[0].id)); console.log(\"searchTagId =\", tags[0].id, tags[0].name); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/tags?q=rogue",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "tags"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "rogue"
+            }
+          ]
+        },
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "Saves the first tag's id as searchTagId for request 41. q is optional (without it: most used tags)."
+      },
+      "response": []
+    },
+    {
+      "name": "44. Filter options: franchises",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/creators?role=franchise&q=monster",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "creators"
+          ],
+          "query": [
+            {
+              "key": "role",
+              "value": "franchise"
+            },
+            {
+              "key": "q",
+              "value": "monster"
+            }
+          ]
+        },
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "role: franchise, developer or publisher. Use the id in /api/games?franchise={id}."
+      },
+      "response": []
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{idToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "firebaseApiKey",
+      "value": ""
+    },
+    {
+      "key": "email",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "idToken",
+      "value": ""
+    },
+    {
+      "key": "seedCursor",
+      "value": "0"
+    },
+    {
+      "key": "targetPublicId",
+      "value": ""
+    },
+    {
+      "key": "accountPlatform",
+      "value": ""
+    },
+    {
+      "key": "accountExternalId",
+      "value": ""
+    },
+    {
+      "key": "trackGameId",
+      "value": "1"
+    },
+    {
+      "key": "searchTagId",
+      "value": ""
+    }
+  ]
+}

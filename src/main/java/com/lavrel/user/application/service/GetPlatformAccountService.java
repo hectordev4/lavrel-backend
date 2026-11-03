@@ -1,0 +1,46 @@
+package com.lavrel.user.application.service;
+
+import com.lavrel.shared.domain.Platform;
+import com.lavrel.user.application.port.in.GetPlatformAccountUseCase;
+import com.lavrel.user.application.port.out.PlatformAccountRepositoryPort;
+import com.lavrel.user.domain.PlatformAccount;
+import com.lavrel.user.domain.PlatformAccountNotFoundException;
+import java.util.List;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@Transactional(readOnly = true)
+public class GetPlatformAccountService implements GetPlatformAccountUseCase {
+
+    private final PlatformAccountRepositoryPort accounts;
+
+    public GetPlatformAccountService(PlatformAccountRepositoryPort accounts) {
+        this.accounts = accounts;
+    }
+
+    @Override
+    public PlatformAccountView getById(long platformAccountId) {
+        return accounts.findById(platformAccountId)
+                .map(GetPlatformAccountService::toView)
+                .orElseThrow(() -> new PlatformAccountNotFoundException(platformAccountId));
+    }
+
+    @Override
+    public List<PlatformAccountView> getByUserId(long userId) {
+        return accounts.findByUserId(userId).stream().map(GetPlatformAccountService::toView).toList();
+    }
+
+    @Override
+    public PlatformAccountView getOwned(long userId, Platform platform, String externalId) {
+        return accounts.findByPlatformAndExternalId(platform, externalId)
+                .filter(account -> account.belongsTo(userId))
+                .map(GetPlatformAccountService::toView)
+                .orElseThrow(() -> new PlatformAccountNotFoundException(platform, externalId));
+    }
+
+    private static PlatformAccountView toView(PlatformAccount a) {
+        return new PlatformAccountView(a.id(), a.userId(), a.platform(), a.externalId(), a.displayName(),
+                a.lastSyncedAt());
+    }
+}

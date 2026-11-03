@@ -1,2 +1,669 @@
-# lavrel-backend
-Backend for the application of Lavrel
+# Lavrel — Backend
+
+A Spring Boot backend for an **achievement tracker**: people sign in with Google or e-mail, link their game
+platform accounts, follow the games they are playing, and see their achievements with unlock percentages worldwide
+and per country. Steam works today; Xbox and PSN plug in through the same platform layer.
+
+The catalog of games is built from Steam and kept **safe for work**: adult games are filtered out, so search and game
+pages are public and can be shown to people who are not logged in.
+
+> This README describes what exists **right now**. The [Roadmap](#roadmap) lists what is next, and the
+> [Decisions log](#decisions-log) records choices that are already made. Update both as the project moves.
+
+---
+
+## Contents
+
+1. [Status](#status)
+2. [Tech stack](#tech-stack)
+3. [Architecture](#architecture)
+4. [Getting started](#getting-started)
+5. [Configuration](#configuration)
+6. [Database](#database)
+7. [Authentication, roles and privacy](#authentication-roles-and-privacy)
+8. [Platforms: linking and syncing](#platforms-linking-and-syncing)
+9. [The catalog and the content policy](#the-catalog-and-the-content-policy)
+10. [Search](#search)
+11. [Tracking list and quick access](#tracking-list-and-quick-access)
+12. [API reference](#api-reference)
+13. [Postman collection](#postman-collection)
+14. [Testing](#testing)
+15. [Troubleshooting](#troubleshooting)
+16. [Roadmap](#roadmap)
+17. [Decisions log](#decisions-log)
+18. [Changelog](#changelog)
+
+---
+
+## Status
+
+| Area | State |
+|---|---|
+| Sign-in with Google or e-mail + password (Firebase ID token verified by the backend) | Working |
+| E-mail verification required for everything except the own profile | Working |
+| Users: public id, free display name, roles (`USER`, `SUPPORT`, `ADMIN`), optional country | Working |
+| Link a platform account (Steam today, through a platform registry) | Working |
+| Sync a Steam library: games, achievements, unlocks, `lastSyncedAt` | Working |
+| Catalog from Steam: tags, genres, developers, publishers, franchises, features, age ratings | Working |
+| Safe-for-work content policy, with admin-managed exceptions | Working |
+| Statistics: global and per-country unlock percentages | Working |
+| Public search: full search with filters, type-ahead, filter options | Working |
+| Tracking list with statuses, progress cards and quick access (20 pins) | Working |
+| Admin tools: seed, walk all of Steam, enrich, refresh, exceptions, roles | Working |
+| Own library search with progress, achievement list per game | Planned |
+| Rate limiting and caching on public endpoints | Planned |
+| Community (opt-in profiles, player search, comments) | Planned |
+| Xbox and PSN | Planned (the platform layer is ready) |
+
+## Tech stack
+
+- **Java 21+**, **Spring Boot 4.1**, Maven
+- **PostgreSQL** on **Supabase**, schema owned by **Flyway**, Hibernate 7 only validates it; `pg_trgm` and `unaccent`
+  for search
+- **Firebase Authentication** (the frontend signs in; the backend verifies the ID token with the Admin SDK)
+- **Spring Security 7**, stateless, one custom filter; **Bean Validation** on every request
+- Steam **Web API** and the Steam store backend, through Spring's `RestClient` and Jackson 3
+- Tests: JUnit 5, AssertJ and Mockito (unit tests, no database needed)
+
+## Architecture
+
+**Hexagonal (ports and adapters), organised by feature.** Each feature has the same three layers:
+
+```
+feature/
+├── domain/                     plain Java: no Spring, no JPA
+├── application/
+│   ├── port/in/                what the feature offers (use cases)
+│   ├── port/out/               what the feature needs (repositories, external services, read queries)
+│   └── service/                implements the in-ports, uses the out-ports
+└── adapter/
+    ├── in/web/                 REST controllers, with their request/response DTOs nested inside
+    └── out/persistence/        JPA entities, repositories, mappers, JDBC adapters
+```
+
+### Features
+
+| Package (`com.lavrel.…`) | Responsibility |
+|---|---|
+| `user` | Users, public ids, roles, usernames, countries, linked platform accounts, sign-in and account linking |
+| `catalog` | Games, achievements, mappings, tags, genres, creators, features, content policy and exceptions, Steam import, search |
+| `library` | The games a user owns and the sync of an account |
+| `progress` | Unlocks and statistics |
+| `tracking` | The tracking list (statuses, progress cards) and quick access |
+| `platform.adapter.out.steam` | Steam clients only (`SteamLibraryClient`, `SteamCatalogClient`, `SteamOpenIdVerifier`). No business logic |
+| `shared` | `Platform`, `PlatformRegistry`, error format, security configuration, `Clock`, Firebase setup |
+| `devtools` | Development-only tools: fake data and the one-time e-mail verification |
+
+### Rules
+
+1. `domain` never depends on Spring or JPA.
+2. A feature talks to another feature **only through its `port.in`**, and passes IDs or small views, not domain objects.
+3. Platform data is translated to our own IDs in the application layer. Adapters return raw platform data.
+4. Network calls never run inside a database transaction.
+5. **Nothing names a platform outside its adapter.** Every per-platform port (library, catalog, identity, game importer)
+   extends `PlatformBound`, and services pick the implementation through `PlatformRegistry`. Adding Xbox means adding
+   adapters, not editing services. A platform with no adapter answers `422 platform_not_supported`.
+6. **Entities are classes, fixed data are records.** `User`, `PlatformAccount`, `Game` and `TrackedGame` change over
+   time: private constructor, a factory for new ones (`register`, `linkVerified`, `create`, `track`), `restore(...)` for
+   the mappers only, and methods for every change. Everything else (`Country`, `Achievement`, `GameMetadata`, DTOs)
+   stays a record.
+7. **The database id never leaves the backend.** Users are identified by their public id, linked accounts by platform
+   and external id; not-found messages never contain internal ids.
+8. Known exceptions to rule 2: read-model query adapters (statistics, tracking cards, search) read other features'
+   tables, read-only.
+
+```
+src/main/java/com/lavrel
+├── LavrelApplication.java
+├── shared/      config · domain (Platform, PlatformRegistry…) · error · security · web
+├── user/        domain · application · adapter
+├── catalog/     domain · application (service/steam: the Steam import) · adapter
+├── library/     domain · application · adapter
+├── progress/    domain · application · adapter
+├── tracking/    domain · application · adapter
+├── platform/    adapter/out/steam
+└── devtools/    fake data, one-time e-mail verification
+src/main/resources
+├── application.yml
+└── db/migration/   V1 … V16
+```
+
+### The Steam import (`catalog/application/service/steam`)
+
+| Class | Responsibility |
+|---|---|
+| `SeedSteamCatalogService`, `EnrichGamesService`, `RefreshGamesService`, `ImportSteamGamesService`, `ContentExemptionService` | Thin use-case services (admin seeding, enrich, refresh, account syncs, exceptions) |
+| `SteamGameScreening` | Cheap and full rejection checks (type, content policy, minimum reviews); no I/O |
+| `SteamImportRun` | The batch loop: known and failed apps are free, store items 25 per call, attempt budget, resume point |
+| `SteamGameReprocessor` | Re-checks existing games (enrich and refresh only differ in which games they pick) |
+| `SteamGameWriter` | Writes a game with its mapping, achievements and details in one transaction |
+| `SteamTagNames` | Steam tag names; one shared bean, so all paths together ask Steam at most once an hour |
+| `GameMetadataAssembler` | Turns the store item and the store page into `GameMetadata`; pure functions |
+
+## Getting started
+
+### Requirements
+
+- Java 21 or newer, Maven 3.9+
+- A **Supabase** project (Postgres)
+- A **Firebase** project with Google and Email/Password sign-in enabled, **one account per e-mail address** kept on, and
+  a **service-account key**
+- A free **Steam Web API key**: <https://steamcommunity.com/dev/apikey> (domain `localhost` is fine for development)
+
+### Steps
+
+1. Create `.env` in the project root and fill it in (see [Configuration](#configuration)). `.env` must be in `.gitignore`.
+2. Put the Firebase service-account JSON outside git, for example `secrets/firebase-service-account.json`
+   (also in `.gitignore`), and point `FIREBASE_CREDENTIALS_PATH` at it.
+3. Generate the link-state secret: `openssl rand -hex 32`, and put it in `STEAM_STATE_SECRET`.
+4. Start it from the project folder:
+
+   ```
+   mvn -e spring-boot:run
+   ```
+
+5. Check it: `curl -i http://localhost:8080/actuator/health` should answer `200` with `{"status":"UP"}`.
+
+On the first start Flyway creates the whole schema (including 50 development countries).
+
+### First admin and test account
+
+1. Sign in once (Postman request 1, then 2) so your user row exists.
+2. In the Supabase SQL editor: `UPDATE users SET role = 'ADMIN' WHERE firebase_uid = '<your Firebase UID>';`
+3. If your test e-mail cannot receive mail, verify it once with the development shortcut: set
+   `app.dev.verify-email-uids: <your Firebase UID>` under `app:`, restart, run Postman **1 → 26 → 1**, then remove the
+   property and restart. Real users verify through the link Firebase e-mails them.
+
+### Quick manual test
+
+1. Import the Postman collection (see [Postman collection](#postman-collection)).
+2. Run request **1** (signs in to Firebase and stores the ID token), then **2** (`GET /api/currentuser`).
+3. A `200` with your `publicId` and `"emailVerified": true` means the whole chain works.
+4. Without any token, request **39** (`GET /api/games`) should already answer: search is public.
+
+## Configuration
+
+### Environment variables (`.env`)
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `DB_URL` | yes | JDBC URL. Use Supabase's **Session pooler** (port 5432) with `?sslmode=require` |
+| `DB_USER` | yes | `postgres.<project-ref>` for the pooler |
+| `DB_PASSWORD` | yes | Database password |
+| `FIREBASE_CREDENTIALS_PATH` | yes | Path to the Firebase service-account JSON |
+| `STEAM_API_KEY` | yes | Steam Web API key |
+| `STEAM_STATE_SECRET` | yes | At least 32 characters; signs the account-link `state` |
+| `STEAM_CALLBACK_URL` | no | Default `http://localhost:8080/api/steam/callback` (`/api/platforms/steam/callback` works too) |
+| `FRONTEND_BASE_URL` | no | Empty: the link callback answers JSON. Set: it redirects to `{url}/{platform}/linked` |
+| `FAKE_DATA_ENABLED` | no | `true` enables the fake-data endpoints (development only) |
+
+Spring does not read `.env` by itself: `application.yml` imports it with
+`spring.config.import: optional:file:.env[.properties]`, so run the app from the project root.
+
+### Application properties (`application.yml`)
+
+| Property | Default | Meaning |
+|---|---|---|
+| `app.stats.min-country-sample` | `20` | Country percentages are hidden below this many players |
+| `app.sync.max-imports-per-sync` | `40` (`50` in the yml) | New games imported per account sync |
+| `app.catalog.min-reviews` | `50` | Bulk seeding drops games with fewer reviews |
+| `app.catalog.failure-retry-days` | `30` | Rejected apps are not asked about again for this long |
+| `app.catalog.import-delay-ms` | `300` (`500` in the yml) | Pause between Steam calls |
+| `app.catalog.seed-delay-ms` | `1000` | Pause between Steam calls while walking all of Steam |
+| `app.catalog.filter.enabled` | `true` | `false` switches the content policy off |
+| `app.catalog.filter.*` | see `CatalogFilterProperties` | Descriptor ids, sexual tag ids, top-5 share, excluded tags; defaults below |
+| `app.link.state-secret` / `app.link.state-ttl` | `app.steam.*` / `PT10M` | Account-link `state`; the old `app.steam.*` keys still work |
+| `app.cors.allowed-origins` | `http://localhost:3000,http://localhost:5173` | Browser origins allowed to call the API. **Add `http://localhost:4200` for the Angular dev server** |
+| `app.dev.verify-email-uids` | not set | Development only: enables the one-time e-mail verification for these Firebase UIDs. Remove after use |
+
+## Database
+
+### Connecting to Supabase
+
+- Use the **Session pooler** (port 5432), with the user `postgres.<project-ref>`.
+  The direct connection is IPv6-only unless you buy the IPv4 add-on and fails with *No route to host* on many networks.
+- Do **not** use the transaction pooler (port 6543): it breaks Flyway.
+- Row Level Security is enabled on every table with no policies, so Supabase's public REST API cannot read any data.
+  The backend connects as `postgres`, which bypasses it. After the first start run once in the SQL editor:
+  `alter table public.flyway_schema_history enable row level security;`
+
+### Migrations (Flyway)
+
+Flyway is the only source of schema changes. Never edit a migration that has been applied: add a new one.
+
+| Version | What it does |
+|---|---|
+| V1 | `country` (50 development countries), `users` |
+| V2 | `platform_account` (unique per platform and external id) |
+| V3 | `game`, `game_mapping` |
+| V4 | `achievement`, `achievement_mapping` |
+| V5 | `account_game` |
+| V6 | `user_achievement` (one row per user and achievement) |
+| V7 | `game.description`, `game.store_url`, `catalog_import_failure` |
+| V9 | Game details: tags, creators, features, age ratings, release, platforms, reviews, `enriched_at` |
+| V10 | Genres, `refreshed_at` |
+| V11 | Random usernames (superseded by V12: usernames are no longer unique) |
+| V12 | `users.public_id` (random 16 digits), `users.role`, drops the unique username index |
+| V13 | `users.email_verified` |
+| V14 | `game.content_exempt` (content-policy exceptions) |
+| V15 | `tracked_game` (tracking list and quick-access pins) |
+| V16 | Search: `pg_trgm`, `unaccent`, `lavrel_normalize()`, `game.search_name` with a trigram index, sort indexes |
+
+There is no V8 on purpose (it was superseded by V9 before release). Flyway does not need consecutive numbers.
+Check what is applied with:
+`select version, description, success from flyway_schema_history order by installed_rank;`
+
+### Tables
+
+```mermaid
+erDiagram
+    country ||--o{ users : "optional"
+    users ||--o{ platform_account : links
+    users ||--o{ user_achievement : earns
+    users ||--o{ tracked_game : follows
+    platform_account ||--o{ account_game : owns
+    game ||--o{ account_game : "has"
+    game ||--o{ tracked_game : "is followed"
+    game ||--o{ game_mapping : "platform ids"
+    game ||--o{ achievement : has
+    achievement ||--o{ achievement_mapping : "other platforms"
+    achievement ||--o{ user_achievement : "has"
+    game ||--o{ game_tag : "has"
+    tag ||--o{ game_tag : "has"
+    game ||--o{ game_genre : "has"
+    genre ||--o{ game_genre : "has"
+    game ||--o{ game_creator : "developer / publisher / franchise"
+    creator ||--o{ game_creator : "has"
+    game ||--o{ game_feature : "has"
+    feature ||--o{ game_feature : "has"
+    game ||--o{ game_age_rating : "PEGI, ESRB..."
+```
+
+Also: `catalog_import_failure` (apps Steam gave us that were rejected, and why) and `flyway_schema_history`.
+
+Deleting a game or a user removes everything attached to it (foreign keys are `ON DELETE CASCADE`).
+
+**Published games.** A game is only visible through the API once `game.enriched_at` is set, which happens when its
+details were copied and it passed the content policy (or has an exception). Games without details stay hidden.
+
+**`achievement_mapping`** is empty until Xbox or PSN exist: it maps each Steam-based achievement to its id on another
+platform (or marks it unavailable there), so unlocks from any platform land on the same achievement.
+
+## Authentication, roles and privacy
+
+**Login happens in the frontend.** The Firebase JS SDK signs the person in (Google, or e-mail and password) and gives the
+frontend an **ID token**. The frontend sends it with every call as `Authorization: Bearer <token>`. The backend only
+**verifies** the token (signature, expiry, project) and finds or creates the user by Firebase UID. Passwords never
+reach the backend. There is no login by username.
+
+### Who can call what
+
+| Caller | Can call |
+|---|---|
+| Anyone, no token | `GET /actuator/health`, the link callbacks, and the public catalog: `GET /api/games`, `/api/games/{id}`, `/api/search`, `/api/tags`, `/api/creators` |
+| Signed in, e-mail **not** verified | Only `GET /api/currentuser` (it returns `emailVerified: false`, so the frontend shows "check your inbox"). Everything else is `403 email_not_verified` |
+| Signed in and verified | Everything for users |
+| Role `ADMIN` (and verified) | `/api/admin/**` |
+
+- Google accounts are always verified. E-mail accounts are verified once the person clicks Firebase's link; the frontend
+  then refreshes the token with `getIdToken(true)`.
+- **Roles** are stored in `users.role`: everyone starts as `USER`; an admin promotes people with
+  `PATCH /api/admin/users/{publicId}/role` (never their own role). `SUPPORT` has no extra permissions yet.
+- A rejected token always gives the same `401`; the real reason is written to the server log (never the token).
+- The service-account key is a **backend secret**. The Firebase web config belongs only in the frontend.
+
+### Public ids, usernames and private data
+
+- Every user has a **public id**: a random 16-digit number, drawn again if taken. It is what other people will see
+  (profile addresses, community features). The sequential database id never leaves the backend.
+- The **username** is a free display name, **not unique** (the public id tells people apart): 2 to 32 characters,
+  letters of any alphabet, digits, spaces and `_ . - ' ! ? & # ( ) [ ]`. Names posing as staff are rejected, even
+  disguised (`a.d.m.i.n`).
+- New users start with a friendly random name such as `SwiftOtter` or `SleepyWaffle` (one adjective and one noun from
+  two neutral lists). The name never comes from the Google account.
+- The e-mail and photo of the sign-in account are **private**: only the user sees them, through `GET /api/currentuser`.
+  `User.toString()` leaves them out, so they never reach the logs.
+- The optional **country** is only used for aggregate statistics.
+
+## Platforms: linking and syncing
+
+### Linking an account
+
+The platform redirects the browser back **without** any login token, so the backend identifies the user with a
+short-lived, signed `state` that is also bound to the platform:
+
+1. The frontend calls `POST /api/currentuser/accounts/{platform}/link` (e.g. `steam`) and gets `{"redirectUrl": "…"}`.
+2. The frontend sends the browser to that login page.
+3. The platform sends the browser back to `GET /api/platforms/{platform}/callback` (Steam's registered
+   `/api/steam/callback` still works).
+4. The backend checks the `state`, asks the platform to confirm the login (Steam: OpenID `check_authentication`), and
+   stores the account for that user. A platform account can be linked once, to one user.
+5. With `FRONTEND_BASE_URL` set, the browser is redirected to `{url}/{platform}/linked?status=success`
+   (or `status=error&reason=…`). Without it, the callback answers JSON.
+
+### Syncing a library
+
+`POST /api/currentuser/accounts/{platform}/{externalId}/sync` (e.g. `/accounts/steam/76561198…/sync`) reads the user's
+library and brings the database up to date. Accounts are addressed by the platform's own id, never our database id;
+someone else's account answers `404` like a missing one.
+
+- The Steam profile's **Game details** must be **Public**; otherwise the sync answers `422 profile_private`.
+- New games go into the catalog **except** adult games (unless an admin made an exception) and games without
+  achievements.
+- Up to `app.sync.max-imports-per-sync` **new** games are imported per sync, most played first. `gamesPending` says how
+  many are still waiting: the user syncs again to continue.
+- Rejected games are remembered for `failure-retry-days`, so they cost no Steam calls on later syncs.
+- Unlocks are recorded once per user and achievement. `lastSyncedAt` is shown in `GET /api/currentuser/accounts`.
+- The sync runs inside the request (it can take a while for a big library).
+
+## The catalog and the content policy
+
+### What is stored for each game
+
+Title, description, cover, Steam store page, release date, platforms, review count and percentage, free flag, required
+age, **developers, publishers and franchise**, **tags** (top 20 with Steam's weight), **genres**, **features**
+(player modes, accessibility, controller support…), and **age ratings** (PEGI, ESRB, USK, CERO…). All of it is
+**copied into our database**: nothing is read from Steam when someone views or searches a game.
+
+Tags, genres and details never change on their own. Only the admin **refresh** re-copies them.
+
+### Safe for work
+
+Every game must pass the content policy before it enters the catalog (`ContentPolicy`, configured under
+`app.catalog.filter.*`):
+
+| Layer | Rule |
+|---|---|
+| Publisher descriptors | Descriptor **3** (Adults Only Sexual Content) rejects. Descriptor **4** (Frequent Nudity or Sexual Content) rejects only when *Sexual Content* or *Nudity* is among the game's top 3 tags |
+| Tag weights | *Sexual Content* or *Nudity* in the top 3 tags **and** holding at least 20 % of the top-5 weight rejects |
+| Hard exclusions | The *Hentai* tag (9130, 6653) at any rank; a non-game type (DLC, soundtrack, video…) |
+
+Mainstream games with some nudity stay (The Witcher 3 has *Nudity* 8th). Visual Novel, Match 3 and Puzzle games are
+allowed on purpose. Violence alone is never blocked.
+
+**Exceptions.** Some safe games have misleading user tags (Marvel Rivals). An admin exempts them with
+`POST /api/admin/catalog/steam/exceptions`: the game is imported (or kept) without the content policy, and enrich and
+refresh never remove it for content reasons. It must still be a real game with achievements. The flag is
+`game.content_exempt`; every exception added or removed is logged.
+
+### Spending as few Steam calls as possible
+
+- Apps already in the catalog and apps already rejected cost **nothing**.
+- A page of 25 games' tags, descriptors, creators, reviews and categories comes from **one** batched call. Non-games,
+  adult games and (in bulk seeding) obscure games are rejected from that data alone.
+- Only the survivors cost per-game calls: an achievement check, then the store page.
+- Steam being down or rate-limiting is **never** remembered as a permanent rejection.
+
+### Admin tools
+
+All need the `ADMIN` role. The Steam ones are slow on purpose (a pause between Steam calls); the Postman collection has
+a request for each, with a Collection Runner recipe for the long ones.
+
+| Endpoint | Use |
+|---|---|
+| `POST /api/admin/catalog/steam/seed` | `{"limit": 100}` imports Steam's most-played games; `{"appIds": [...]}` imports specific ones |
+| `POST /api/admin/catalog/steam/seed-next` | Resumable walk through **all** of Steam: `{"cursor": 0, "limit": 100}`; feed `nextCursor` back until `hasMore` is false |
+| `POST /api/admin/catalog/steam/enrich` | Gives details to games that never had them; adult ones are removed |
+| `POST /api/admin/catalog/steam/refresh` | Re-copies tags, genres and details of published games; a game that no longer passes is removed |
+| `POST /api/admin/catalog/steam/exceptions` | `{"appIds": ["2767030"]}` exempts games from the content policy |
+| `GET /api/admin/catalog/steam/exceptions` | Lists the exempt games |
+| `DELETE /api/admin/catalog/steam/exceptions/{appId}` | Removes an exception; the next refresh judges the game again |
+| `PATCH /api/admin/users/{publicId}/role` | `{"role": "SUPPORT"}`: `USER`, `SUPPORT` or `ADMIN` |
+
+Limits are validated: `limit` 1–200, app ids numeric, at most 500 per request.
+
+## Search
+
+All search endpoints are **public** and only return published, safe-for-work games.
+
+- **Full search**, `GET /api/games`: the results page; browse pages ("all Roguelike games", "the Monster Hunter series")
+  are this call with a preset filter.
+- **Type-ahead**, `GET /api/search?q=`: 5 games, 5 tags and 3 franchises for the header dropdown.
+- **Filter options**, `GET /api/tags?q=` and `GET /api/creators?role=franchise|developer|publisher&q=`: the dropdowns,
+  with the number of games, prefix matches first.
+
+| Parameter of `GET /api/games` | Meaning |
+|---|---|
+| `q` | 2–100 characters. Matches the name ignoring case, accents and punctuation, and tolerates typos ("witcer" finds The Witcher, "pokemon" finds Pokémon) |
+| `tag` | Up to 5 tag ids; **all** must apply. A tag counts only when it really describes the game: among its top 10 tags, or holding at least a quarter of its top tag's weight |
+| `franchise`, `developer`, `publisher` | Creator ids from `/api/creators` |
+| `mode` | `single-player`, `co-op`, `multiplayer`; all must be offered |
+| `sort` | `relevance` (default with `q`: exact name, starts with, contains, close matches), `popular` (default without `q`: most reviews), `rating` (needs 100 reviews to rank high), `newest`, `name` |
+| `page`, `size` | From 0; size 20 by default, at most 50. `hasMore` tells whether there is a next page (no slow total count) |
+
+Name matching is done in Postgres: `lavrel_normalize()` (V16) turns "The Witcher® 3: Wild Hunt" into
+"the witcher 3 wild hunt" for both the stored `game.search_name` and the query, and `pg_trgm` handles typos and ranking.
+
+## Tracking list and quick access
+
+The tracking list is the user's own list of games to follow. **Only the user adds games**; a sync never does. Any
+catalog game can be tracked, owned or not (games from a sync are in the catalog).
+
+- Each game has a **status**: `PLAYING`, `BACKLOG`, `COMPLETED` or `DROPPED`.
+- Each card shows **progress** (unlocked of total) and the **3 easiest achievements not unlocked yet**, by share of the
+  game's owners who unlocked them. Hidden achievements are flagged so the frontend can blur them.
+- Default order: **newest store release first** (games without a date last); `sort=title` and `sort=updated` too.
+- **Quick access**: up to **20** pinned games, in the user's own order (positions 1..n, no gaps). The 21st answers
+  `409 quick_access_full`. Removing a game from the list also unpins it.
+
+## API reference
+
+Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `Authorization: Bearer <Firebase ID token>`.
+
+### Public (no token)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/actuator/health` | Health check |
+| GET | `/api/platforms/{platform}/callback`, `/api/steam/callback` | Where the platform redirects the browser after login |
+| GET | `/api/games` | Full search (see [Search](#search)) |
+| GET | `/api/games/{gameId}` | Game page (published games only; `404` otherwise) |
+| GET | `/api/search?q=` | Type-ahead |
+| GET | `/api/tags?q=` | Tag options |
+| GET | `/api/creators?role=&q=` | Franchise, developer or publisher options |
+
+### Signed in (any e-mail state)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/currentuser` | Own profile: `publicId`, `firebaseUid`, `username`, `email`, `emailVerified`, `photoUrl`, `countryId`, `role` |
+
+### Signed in and verified
+
+| Method | Path | Description |
+|---|---|---|
+| PATCH | `/api/currentuser/username` | `{"username": "Héctor K."}`. `204` |
+| PATCH | `/api/currentuser/country` | `{"countryId": 12}`; `null` clears it. `204` |
+| GET | `/api/countries` | `{"countries": [...]}` |
+| GET | `/api/currentuser/accounts` | Linked accounts: `platform`, `externalId`, `displayName`, `lastSyncedAt` |
+| POST | `/api/currentuser/accounts/{platform}/link` | Returns the platform login URL |
+| POST | `/api/currentuser/accounts/{platform}/{externalId}/sync` | Syncs one account |
+| GET | `/api/games/{gameId}/stats` | `{"gameId", "achievements": [...]}`: global and own-country unlock percentages |
+| GET | `/api/currentuser/tracked?status=&sort=` | Tracking list: `{"games": [cards]}` |
+| PUT | `/api/currentuser/tracked/{gameId}` | `{"status": "PLAYING"}`: add, or change the status |
+| DELETE | `/api/currentuser/tracked/{gameId}` | Remove. `204` |
+| GET | `/api/currentuser/tracked/quick-access` | Pinned games, in order |
+| PUT | `/api/currentuser/tracked/{gameId}/pin` | Pin at the end |
+| DELETE | `/api/currentuser/tracked/{gameId}/pin` | Unpin. `204` |
+| PUT | `/api/currentuser/tracked/quick-access` | `{"gameIds": [7, 3]}`: new order, every pinned game once |
+
+### Admin (`ADMIN` role)
+
+The catalog and user tools listed in [Admin tools](#admin-tools).
+
+### Development only
+
+| Method | Path | Enabled by | Description |
+|---|---|---|---|
+| POST / DELETE | `/api/admin/dev/fake-data` | `FAKE_DATA_ENABLED=true` (and admin) | `{"users": 50, "gamesPerUser": 15}` creates fake players; `DELETE` removes them all |
+| POST | `/api/dev/verify-my-email` | `app.dev.verify-email-uids` | Marks the caller's own e-mail as verified in Firebase, once. `404` for anyone not listed |
+
+### Examples
+
+`GET /api/games?q=witcher` (shortened):
+
+```json
+{
+  "games": [{
+    "id": 7, "title": "The Witcher 3: Wild Hunt", "slug": "the-witcher-3-wild-hunt",
+    "releaseDate": "2015-05-18", "platforms": { "windows": true, "mac": false, "linux": false },
+    "reviewCount": 839761, "reviewPercentPositive": 96, "topTags": ["Open World", "RPG", "Story Rich"],
+    "modes": { "singlePlayer": true, "coOp": false, "multiplayer": false }
+  }],
+  "page": 0, "size": 20, "hasMore": false
+}
+```
+
+`GET /api/currentuser/tracked?status=playing` (one card, shortened):
+
+```json
+{
+  "games": [{
+    "gameId": 7, "title": "The Witcher 3: Wild Hunt", "status": "PLAYING", "pinPosition": 1,
+    "unlocked": 18, "total": 78,
+    "nextAchievements": [{ "achievementId": 812, "name": "Lilac and Gooseberries", "hidden": false, "globalPercent": 64.2 }]
+  }]
+}
+```
+
+`slug` is for readable page addresses: the frontend builds `/games/{id}-{slug}`; only the id identifies the game.
+
+### Errors
+
+Every error is `{"error": "<code>", "message": "<text>"}`. Validation errors add `details`: one
+`{"field", "problem"}` per invalid field or parameter.
+
+| Status | Codes |
+|---|---|
+| 400 | `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `country_not_found`, `invalid_identity_proof`, `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order` |
+| 401 | `unauthorized` (missing or invalid token) |
+| 403 | `email_not_verified`, `forbidden` |
+| 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `not_found` |
+| 409 | `account_already_linked`, `already_verified`, `quick_access_full` |
+| 422 | `profile_private`, `platform_not_supported` |
+| 502 | `platform_unavailable`, `identity_provider_unavailable` |
+
+## Postman collection
+
+File: `postman/lavrel-backend.postman_collection.json`. Import it in Postman, open the collection's **Variables** tab and
+fill in the **Current value** column of `firebaseApiKey`, `email` and `password` (a Firebase e-mail/password user).
+Run request **1** first: it stores the ID token, which expires after about an hour (run it again on a `401`).
+
+| Requests | Purpose |
+|---|---|
+| 1, 2 | Sign in to Firebase and store the ID token; own profile |
+| 3 – 10 | Countries, country, linked accounts (saves `accountPlatform` / `accountExternalId`), sync, stats, "no token" check |
+| 11 | Start the Steam link (open the returned URL in a browser) |
+| 12, 13 | Seed from Steam: most played, or specific app ids |
+| 14, 15 | Fake players: create and delete |
+| 16 | Game page |
+| 17, 18 | Walk all of Steam (Collection Runner), and reset its cursor |
+| 19, 20 | Enrich pending games and refresh from Steam (Collection Runner) |
+| 21 | Set my username |
+| 22 – 25 | Platform checks (Xbox not supported yet, unknown platform), validation errors, the generic callback |
+| 26 | Development: verify my test e-mail once |
+| 27 | Admin: change a user's role (`targetPublicId`) |
+| 28 – 30 | Admin: content-policy exceptions (Marvel Rivals), list, remove |
+| 31 – 34 | Tracking list: track, list, filter by status, remove (`trackGameId`) |
+| 35 – 38 | Quick access: pin, list, reorder, unpin |
+| 39 – 44 | Search, without token: popular, typo, filters, type-ahead, tags (saves `searchTagId`), franchises |
+
+**Collection Runner recipe** (17, 19, 20): Run collection → select **only that request** → Iterations 20 → Delay 3000–5000 ms.
+The script stores the cursor or stops the run by itself when there is nothing left or Steam stops answering.
+
+## Testing
+
+```
+mvn clean test
+```
+
+About 100 unit tests, no database or network needed (JUnit 5, AssertJ, Mockito):
+
+| Area | Tests |
+|---|---|
+| Content policy and Steam import | `ContentPolicyTest`, `SteamGameScreeningTest`, `SteamImportRunTest`, `ContentExemptionServiceTest` |
+| Entities and mappers | `UserTest`, `PlatformAccountTest`, `GameTest`, `TrackedGameTest`, `UserMapperTest`, `PlatformAccountMapperTest`, `GameMapperTest` |
+| Accounts | `UsernamesTest`, `AuthenticateUserServiceTest`, `PublicIdAllocatorTest`, `UsernameGeneratorTest`, `ChangeUserRoleServiceTest`, `ForceVerifyEmailServiceTest`, `GetPlatformAccountServiceTest`, `UserNotFoundExceptionsTest` |
+| Tracking | `TrackGameServiceTest`, `QuickAccessTest`, `QuickAccessServiceTest` |
+| Search | `GameSearchCriteriaTest`, `GameSearchSqlTest`, `QuickSearchServiceTest`, `BrowseFiltersServiceTest` |
+| Other | `SlugTest` |
+
+Persistence, SQL and the full HTTP flows are checked by hand with the Postman collection. Use `mvn clean …` rather than
+plain `mvn compile` after pulling big changes: stale classes in `target/` can hide or invent errors.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| `No route to host` to Supabase | Direct connection is IPv6-only. Use the **Session pooler** |
+| `Failed to configure a DataSource: 'url' attribute is not specified` | `application.yml` or `.env` is missing, or the app was not started from the project root |
+| `Could not resolve placeholder 'X'` at start | Variable missing from `.env`, or the app was not started from the project root |
+| Flyway: `canceling statement due to statement timeout` | A migration tried to alter `flyway_schema_history` while Flyway holds it. Do that by hand, after the first start |
+| Flyway: `Found non-empty schema(s) "public" but no schema history table` | Tables exist from a manual run. Drop them and let Flyway create them |
+| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V16 must be there) |
+| V16 fails (`permission denied` or `function unaccent does not exist`) | Enable `pg_trgm` and `unaccent` in Supabase (Database → Extensions) and restart |
+| `401` with a token that looks valid | The token and the service-account key belong to different Firebase projects. The server log gives the reason |
+| `403 email_not_verified` | The e-mail is not verified, or the token is older than the verification: refresh it (`getIdToken(true)`, or Postman request 1) |
+| `403 forbidden` on `/api/admin/**` | Your `users.role` is not `ADMIN` (see [First admin](#first-admin-and-test-account)) |
+| `404` on `/api/dev/verify-my-email` | `app.dev.verify-email-uids` is not set, is indented wrongly (it must be under `app:` → `dev:`), or lacks your UID |
+| `404` on a game that exists | It is not published yet (no details). Run **enrich** |
+| Sync answers `422 profile_private` | In Steam: Profile → Edit Profile → Privacy Settings → Game details: **Public** |
+| Link fails with `invalid_identity_proof` | The `state` expired (10 minutes), was issued for another platform, or the callback URL differs from `STEAM_CALLBACK_URL` |
+| Browser calls blocked by CORS | Add the frontend's origin (e.g. `http://localhost:4200`) to `app.cors.allowed-origins` |
+| `Error while fetching public key certificates: Not in GZIP format` | Firebase must use the JDK HTTP transport: `FirebaseConfig` sets `NetHttpTransport` |
+| Port 8080 already in use | An old instance is running: stop it with Ctrl+C |
+
+## Roadmap
+
+Next, in this order:
+
+1. **Library and achievements**: `GET /api/currentuser/games` (own library with progress and the same filters as search)
+   and the achievement list per game with unlock percentages (hidden achievements shown by name only).
+2. **Protect the public endpoints**: rate limiting and short caching on search and game pages.
+3. **Collections**: named lists on top of the tracking list ("Platinum hunt", "Cozy games").
+4. **Xbox and PSN**: their library, catalog and identity adapters, plus an admin "compare achievements" endpoint that
+   fills `achievement_mapping`.
+5. **Community**: opt-in public profiles and player search (by public id and display name), then comments so players on
+   different platforms can help each other. Needs moderation tools (the `SUPPORT` role).
+6. **AI chat** that helps players find how to obtain achievements.
+
+Known gaps: no automated tests for persistence or the HTTP layer; Steam's "most played" chart and store-browse endpoints
+are public but not documented by Valve and could change.
+
+## Decisions log
+
+| Decision | Reason |
+|---|---|
+| Hexagonal architecture by feature | Features stay independent; platforms plug in as adapters |
+| Platforms are picked through `PlatformRegistry`; nothing outside an adapter names a platform | Adding Xbox/PSN must not touch services |
+| Flyway is the only schema source; Hibernate `validate` | One source of truth |
+| Login with e-mail + password or Google only, both in Firebase; no username login | The backend never handles passwords; e-mails stay private |
+| E-mail verification required for everything except the own profile | Nobody can act with an e-mail they do not own |
+| Roles `USER` / `SUPPORT` / `ADMIN` in the database | Admins are managed without redeploying |
+| Public id (random 16 digits) instead of exposing database ids | Database ids are sequential and reveal how many users and accounts exist |
+| Usernames are free display names, not unique; friendly random starting names | Steam-like freedom; the public id tells people apart |
+| Entities (`User`, `PlatformAccount`, `Game`, `TrackedGame`) are classes; fixed data are records | Objects that change over time keep their own rules |
+| Request/response DTOs nested in their controller | Each endpoint stays self-contained |
+| Catalog is **safe for work**, decided by descriptors and tag weights, with admin exceptions | Public pages must be safe; mainstream games with some nudity stay; misleading tags can be overridden |
+| Visual Novel and Match 3 are allowed | Blocking them removed games like Zuma and Umamusume |
+| Tags and genres are **copied** and change only on manual refresh | No dependence on Steam at read time; no silent drift |
+| Games are hidden until enriched (`enriched_at`) | Nothing unchecked is ever shown |
+| First library read picks everything except adult games and games **without achievements** | It is an achievement tracker |
+| Search is public; filters: name, tags (**AND**), franchise, developer, publisher, player modes | Agreed |
+| One grouped type-ahead endpoint (games, tags, franchises) | Agreed |
+| Tracking list filled only by the user; quick access capped at 20; default order by store release date | Agreed |
+| Player search on a separate community page, only **opted-in** profiles | Privacy |
+| Readable game URLs: `/games/{id}-{slug}` | Shareable, search-engine friendly; the id decides |
+
+## Changelog
+
+- **feat/search**: public full search with filters and sorting, type-ahead, tag and creator options (V16).
+- **feat/tracking**: tracking list with statuses and progress cards; quick access with 20 pins (V15).
+- **feat/dto**: entity classes (`User`, `PlatformAccount`, `Game`), accounts addressed by platform and external id,
+  path validation, wrapped list responses, `UNPROCESSABLE_CONTENT` instead of the deprecated status.
+- **Content exceptions**: admin-managed content-policy exceptions (V14).
+- **Refactor**: platform registry and generic account linking; Steam importer split by responsibility; content policy v2;
+  accounts with public ids, roles, free usernames and e-mail verification (V12, V13); request validation, one error
+  format, response DTOs.
+- **feat/steam-api**: Firebase login, users and privacy, Steam link and sync, SFW catalog from Steam, tags, genres,
+  features and ratings, statistics, admin tools, Postman collection, README.
