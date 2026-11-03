@@ -5,6 +5,7 @@ target/
 !**/src/test/**/target/
 secrets/
 .env
+.DS_Store
 
 ### STS ###
 .apt_generated
