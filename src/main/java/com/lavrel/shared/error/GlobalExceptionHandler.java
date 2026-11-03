@@ -7,6 +7,9 @@ import com.lavrel.library.domain.ProfilePrivateException;
 import com.lavrel.shared.domain.PlatformNotSupportedException;
 import com.lavrel.shared.domain.PlatformUnavailableException;
 import com.lavrel.shared.error.ApiError.FieldProblem;
+import com.lavrel.tracking.domain.GameNotTrackedException;
+import com.lavrel.tracking.domain.InvalidQuickAccessOrderException;
+import com.lavrel.tracking.domain.QuickAccessFullException;
 import com.lavrel.user.domain.AccountAlreadyLinkedException;
 import com.lavrel.user.domain.CountryNotFoundException;
 import com.lavrel.user.domain.EmailAlreadyVerifiedException;
@@ -104,6 +107,11 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, "invalid_role_change", e.getMessage());
     }
 
+    @ExceptionHandler(InvalidQuickAccessOrderException.class)
+    public ResponseEntity<ApiError> invalidQuickAccessOrder(InvalidQuickAccessOrderException e) {
+        return error(HttpStatus.BAD_REQUEST, "invalid_quick_access_order", e.getMessage());
+    }
+
     @ExceptionHandler(InvalidComparisonException.class)
     public ResponseEntity<ApiError> invalidComparison(InvalidComparisonException e) {
         return error(HttpStatus.BAD_REQUEST, "invalid_comparison", e.getMessage());
@@ -133,6 +141,11 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.NOT_FOUND, "game_not_found", e.getMessage());
     }
 
+    @ExceptionHandler(GameNotTrackedException.class)
+    public ResponseEntity<ApiError> gameNotTracked(GameNotTrackedException e) {
+        return error(HttpStatus.NOT_FOUND, "game_not_tracked", e.getMessage());
+    }
+
     @ExceptionHandler(GameNotOnPlatformException.class)
     public ResponseEntity<ApiError> gameNotOnPlatform(GameNotOnPlatformException e) {
         return error(HttpStatus.NOT_FOUND, "game_not_on_platform", e.getMessage());
@@ -149,6 +162,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(EmailAlreadyVerifiedException.class)
     public ResponseEntity<ApiError> emailAlreadyVerified(EmailAlreadyVerifiedException e) {
         return error(HttpStatus.CONFLICT, "already_verified", e.getMessage());
+    }
+
+    @ExceptionHandler(QuickAccessFullException.class)
+    public ResponseEntity<ApiError> quickAccessFull(QuickAccessFullException e) {
+        return error(HttpStatus.CONFLICT, "quick_access_full", e.getMessage());
     }
 
     @ExceptionHandler(AccountAlreadyLinkedException.class)
