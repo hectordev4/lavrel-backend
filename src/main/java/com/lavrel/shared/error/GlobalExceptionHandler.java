@@ -7,6 +7,7 @@ import com.lavrel.library.domain.ProfilePrivateException;
 import com.lavrel.shared.domain.PlatformNotSupportedException;
 import com.lavrel.shared.domain.PlatformUnavailableException;
 import com.lavrel.shared.error.ApiError.FieldProblem;
+import com.lavrel.tracking.domain.GameNotTrackedException;
 import com.lavrel.user.domain.AccountAlreadyLinkedException;
 import com.lavrel.user.domain.CountryNotFoundException;
 import com.lavrel.user.domain.EmailAlreadyVerifiedException;
@@ -131,6 +132,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(GameNotFoundException.class)
     public ResponseEntity<ApiError> gameNotFound(GameNotFoundException e) {
         return error(HttpStatus.NOT_FOUND, "game_not_found", e.getMessage());
+    }
+
+    @ExceptionHandler(GameNotTrackedException.class)
+    public ResponseEntity<ApiError> gameNotTracked(GameNotTrackedException e) {
+        return error(HttpStatus.NOT_FOUND, "game_not_tracked", e.getMessage());
     }
 
     @ExceptionHandler(GameNotOnPlatformException.class)
