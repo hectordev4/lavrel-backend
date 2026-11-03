@@ -1,0 +1,20 @@
+# Only pom.xml and src/ are needed to build the image. Keep secrets and local files out of the build context.
+.git
+.gitattributes
+.gitignore
+.idea
+.vscode
+.mvn
+mvnw
+mvnw.cmd
+target
+secrets
+.env
+*.log
+*.md
+docs
+postman
+LICENSE
+Dockerfile
+.dockerignore
+.DS_Store

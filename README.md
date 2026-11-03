@@ -181,6 +181,12 @@ On the first start Flyway creates the whole schema (including 50 development cou
 3. A `200` with your `publicId` and `"emailVerified": true` means the whole chain works.
 4. Without any token, request **39** (`GET /api/games`) should already answer: search is public.
 
+### Deploying
+
+The backend ships as a Docker image (`Dockerfile`, Java 21, non-root) and runs on **Google Cloud Run** inside its free
+monthly allowance. The image is built in Google Cloud, so Docker is not needed locally. Step by step, including secrets
+and costs: [docs/DEPLOY.md](docs/DEPLOY.md). Locally, keep using `mvn spring-boot:run`.
+
 ## Configuration
 
 ### Environment variables (`.env`)
@@ -196,6 +202,8 @@ On the first start Flyway creates the whole schema (including 50 development cou
 | `STEAM_CALLBACK_URL` | no | Default `http://localhost:8080/api/steam/callback` (`/api/platforms/steam/callback` works too) |
 | `FRONTEND_BASE_URL` | no | Empty: the link callback answers JSON. Set: it redirects to `{url}/{platform}/linked` |
 | `FAKE_DATA_ENABLED` | no | `true` enables the fake-data endpoints (development only) |
+| `CORS_ALLOWED_ORIGINS` | no | Browser origins allowed to call the API, comma-separated. Default `http://localhost:4200` |
+| `PORT` | no | HTTP port; set by Cloud Run. Default `8080` |
 
 Spring does not read `.env` by itself: `application.yml` imports it with
 `spring.config.import: optional:file:.env[.properties]`, so run the app from the project root.
