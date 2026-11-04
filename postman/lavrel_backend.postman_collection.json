@@ -2194,6 +2194,121 @@
         "description": "With your token: unlocked / unlockedAt per achievement and the percentage in your country."
       },
       "response": []
+    },
+    {
+      "name": "56. Firebase: send me the verification e-mail",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Sent (200)\", function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { console.log(\"Verification e-mail sent to\", pm.response.json().email, \"- open the link, then run request 1 again.\"); }",
+              "else { console.log(pm.response.json()); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestType\": \"VERIFY_EMAIL\",\n  \"idToken\": \"{{idToken}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={{firebaseApiKey}}",
+          "protocol": "https",
+          "host": [
+            "identitytoolkit",
+            "googleapis",
+            "com"
+          ],
+          "path": [
+            "v1",
+            "accounts:sendOobCode"
+          ],
+          "query": [
+            {
+              "key": "key",
+              "value": "{{firebaseApiKey}}"
+            }
+          ]
+        },
+        "description": "Firebase sends its verification link to the e-mail of the account signed in with request 1 (a real mailbox: check spam too). After clicking it, run request 1 again: the new token has email_verified = true. Talks to Firebase directly, not to our backend, so it works in production."
+      },
+      "response": []
+    },
+    {
+      "name": "57. Firebase: send me a password-reset e-mail",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Sent (200)\", function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { console.log(\"Password-reset e-mail sent to\", pm.response.json().email); } else { console.log(pm.response.json()); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestType\": \"PASSWORD_RESET\",\n  \"email\": \"{{email}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={{firebaseApiKey}}",
+          "protocol": "https",
+          "host": [
+            "identitytoolkit",
+            "googleapis",
+            "com"
+          ],
+          "path": [
+            "v1",
+            "accounts:sendOobCode"
+          ],
+          "query": [
+            {
+              "key": "key",
+              "value": "{{firebaseApiKey}}"
+            }
+          ]
+        },
+        "description": "Sends Firebase's password-reset link to {{email}}. Useful for an account created with Google: setting a password through this link lets request 1 sign in to the same account (same Firebase UID) with e-mail and password."
+      },
+      "response": []
     }
   ],
   "auth": {
