@@ -11,13 +11,11 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
  * Every user value goes in as a bind parameter; only fixed fragments are concatenated.
  *
  * Name matching uses lavrel_normalize (lower case, no accents, punctuation as spaces) on both sides and pg_trgm,
- * so "witcer 3" finds "The Witcher® 3: Wild Hunt". A tag counts for a game only when it really describes it:
- * among the game's top {@value #TAG_TOP_POSITIONS} tags, or holding at least a quarter of its top tag's weight
- * (the lower Steam tags are noise).
+ * so "witcer 3" finds "The Witcher® 3: Wild Hunt". The name, tag and mode conditions come from GameFilterSql, which the
+ * library query shares.
  */
 final class GameSearchSql {
 
-    static final int TAG_TOP_POSITIONS = 10;
     static final int RATING_MIN_REVIEWS = 100;
 
     private static final String SELECT = """
@@ -43,21 +41,17 @@ final class GameSearchSql {
         MapSqlParameterSource params = new MapSqlParameterSource();
         StringBuilder sql = new StringBuilder(SELECT);
         if (c.query() != null) {
-            sql.append("CROSS JOIN (SELECT lavrel_normalize(:q) AS v) q\n");
+            sql.append(GameFilterSql.QUERY_JOIN);
             params.addValue("q", c.query());
         }
         List<String> where = new ArrayList<>();
         where.add("g.enriched_at IS NOT NULL");
         if (c.query() != null) {
-            where.add("(g.search_name LIKE '%' || q.v || '%' OR q.v <% g.search_name)");
+            where.add(GameFilterSql.NAME_MATCH);
         }
         for (int i = 0; i < c.tagIds().size(); i++) {
             String p = "tag" + i;
-            where.add("""
-                    EXISTS (SELECT 1 FROM game_tag gt WHERE gt.game_id = g.id AND gt.tag_id = :%s
-                            AND (gt.position < %d
-                                 OR gt.weight * 4 >= (SELECT max(t0.weight) FROM game_tag t0 WHERE t0.game_id = g.id)))"""
-                    .formatted(p, TAG_TOP_POSITIONS));
+            where.add(GameFilterSql.tagCondition(p));
             params.addValue(p, c.tagIds().get(i));
         }
         creator(where, params, "franchiseId", c.franchiseId(), "FRANCHISE");
@@ -66,7 +60,7 @@ final class GameSearchSql {
         int m = 0;
         for (PlayerMode mode : c.modes().stream().sorted().toList()) {
             String p = "mode" + m++;
-            where.add("EXISTS (SELECT 1 FROM game_feature gf WHERE gf.game_id = g.id AND gf.feature_id IN (:" + p + "))");
+            where.add(GameFilterSql.modeCondition(p));
             params.addValue(p, mode.featureIds());
         }
         sql.append("WHERE ").append(String.join("\n  AND ", where)).append('\n');

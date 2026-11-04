@@ -1793,6 +1793,522 @@
         "description": "role: franchise, developer or publisher. Use the id in /api/games?franchise={id}."
       },
       "response": []
+    },
+    {
+      "name": "45. My library (recently played first; saves libraryGameId)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "const games = pm.response.json().games;",
+              "if (games.length > 0) { pm.collectionVariables.set(\"libraryGameId\", String(games[0].gameId)); console.log(\"libraryGameId =\", games[0].gameId, games[0].title); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/games",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "games"
+          ]
+        },
+        "description": "Your owned games (all linked accounts) with cover, progress, playtime and which accounts own them. sort: recent (default), name, playtime, progress, newest. Same filters as search: q, tag, mode; plus collection."
+      },
+      "response": []
+    },
+    {
+      "name": "46. My library by progress",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/games?sort=progress",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "games"
+          ],
+          "query": [
+            {
+              "key": "sort",
+              "value": "progress"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "47. Collections: create (saves collectionId)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
+              "pm.collectionVariables.set(\"collectionId\", pm.response.json().id);",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/collections",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "collections"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Cozy games\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "1-40 characters, unique per user ignoring case (409 collection_name_taken), up to 50 collections."
+      },
+      "response": []
+    },
+    {
+      "name": "48. Collections: list",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/collections",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "collections"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "49. Collections: add a game I own",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/collections/{{collectionId}}/games/{{libraryGameId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "collections",
+            "{{collectionId}}",
+            "games",
+            "{{libraryGameId}}"
+          ]
+        },
+        "description": "Only games in your library (run 45 first): anything else answers 422 game_not_owned."
+      },
+      "response": []
+    },
+    {
+      "name": "50. My library: one collection",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/games?collection={{collectionId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "games"
+          ],
+          "query": [
+            {
+              "key": "collection",
+              "value": "{{collectionId}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "51. Collections: rename",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/collections/{{collectionId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "collections",
+            "{{collectionId}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Cozy nights\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "52. Collections: remove the game",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/collections/{{collectionId}}/games/{{libraryGameId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "collections",
+            "{{collectionId}}",
+            "games",
+            "{{libraryGameId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "53. Collections: delete",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/collections/{{collectionId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "collections",
+            "{{collectionId}}"
+          ]
+        },
+        "description": "Deletes the collection only; the games stay in your library."
+      },
+      "response": []
+    },
+    {
+      "name": "54. Achievements of a game (public)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"No personal data without a token\", function () { pm.expect(pm.response.json().unlocked).to.eql(null); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/games/{{trackGameId}}/achievements",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games",
+            "{{trackGameId}}",
+            "achievements"
+          ]
+        },
+        "description": "Anyone: the list with worldwide percentages. Hidden ones come with hidden: true, to blur in the UI."
+      },
+      "response": []
+    },
+    {
+      "name": "55. Achievements of a game (signed in)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Has my unlock count\", function () { pm.expect(pm.response.json().unlocked).to.be.a(\"number\"); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/games/{{trackGameId}}/achievements",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games",
+            "{{trackGameId}}",
+            "achievements"
+          ]
+        },
+        "description": "With your token: unlocked / unlockedAt per achievement and the percentage in your country."
+      },
+      "response": []
+    },
+    {
+      "name": "56. Firebase: send me the verification e-mail",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Sent (200)\", function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { console.log(\"Verification e-mail sent to\", pm.response.json().email, \"- open the link, then run request 1 again.\"); }",
+              "else { console.log(pm.response.json()); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestType\": \"VERIFY_EMAIL\",\n  \"idToken\": \"{{idToken}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={{firebaseApiKey}}",
+          "protocol": "https",
+          "host": [
+            "identitytoolkit",
+            "googleapis",
+            "com"
+          ],
+          "path": [
+            "v1",
+            "accounts:sendOobCode"
+          ],
+          "query": [
+            {
+              "key": "key",
+              "value": "{{firebaseApiKey}}"
+            }
+          ]
+        },
+        "description": "Firebase sends its verification link to the e-mail of the account signed in with request 1 (a real mailbox: check spam too). After clicking it, run request 1 again: the new token has email_verified = true. Talks to Firebase directly, not to our backend, so it works in production."
+      },
+      "response": []
+    },
+    {
+      "name": "57. Firebase: send me a password-reset e-mail",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Sent (200)\", function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { console.log(\"Password-reset e-mail sent to\", pm.response.json().email); } else { console.log(pm.response.json()); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestType\": \"PASSWORD_RESET\",\n  \"email\": \"{{email}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={{firebaseApiKey}}",
+          "protocol": "https",
+          "host": [
+            "identitytoolkit",
+            "googleapis",
+            "com"
+          ],
+          "path": [
+            "v1",
+            "accounts:sendOobCode"
+          ],
+          "query": [
+            {
+              "key": "key",
+              "value": "{{firebaseApiKey}}"
+            }
+          ]
+        },
+        "description": "Sends Firebase's password-reset link to {{email}}. Useful for an account created with Google: setting a password through this link lets request 1 sign in to the same account (same Firebase UID) with e-mail and password."
+      },
+      "response": []
     }
   ],
   "auth": {
@@ -1848,6 +2364,14 @@
     },
     {
       "key": "searchTagId",
+      "value": ""
+    },
+    {
+      "key": "libraryGameId",
+      "value": ""
+    },
+    {
+      "key": "collectionId",
       "value": ""
     }
   ]
