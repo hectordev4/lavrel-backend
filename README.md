@@ -1,5 +1,7 @@
 # Lavrel — Backend
 
+[![CI](https://github.com/hectordev4/lavrel-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/hectordev4/lavrel-backend/actions/workflows/ci.yml)
+
 A Spring Boot backend for an **achievement tracker**: people sign in with Google or e-mail, link their game
 platform accounts, follow the games they are playing, and see their achievements with unlock percentages worldwide
 and per country. Steam works today; Xbox and PSN plug in through the same platform layer.
@@ -53,6 +55,8 @@ pages are public and can be shown to people who are not logged in.
 | Admin tools: seed, walk all of Steam, enrich, refresh, exceptions, roles | Working |
 | My library (owned games, progress, filters) and collections of owned games | Working |
 | Achievement list per game with unlock state and percentages | Working |
+| Unlink a platform account; delete my account (Firebase sign-in included) | Working |
+| Build and tests on every push and pull request (GitHub Actions) | Working |
 | Rate limiting and caching on public endpoints | Planned |
 | Community (opt-in profiles, player search, comments) | Planned |
 | Xbox and PSN | Planned (the platform layer is ready) |
@@ -315,7 +319,7 @@ reach the backend. There is no login by username.
 | Caller | Can call |
 |---|---|
 | Anyone, no token | `GET /actuator/health`, the link callbacks, and the public catalog: `GET /api/games`, `/api/games/{id}`, `/api/games/{id}/achievements`, `/api/search`, `/api/tags`, `/api/creators` |
-| Signed in, e-mail **not** verified | Only `GET /api/currentuser` (it returns `emailVerified: false`, so the frontend shows "check your inbox"). Everything else is `403 email_not_verified` |
+| Signed in, e-mail **not** verified | Only `GET /api/currentuser` (it returns `emailVerified: false`, so the frontend shows "check your inbox") and `DELETE /api/currentuser`. Everything else is `403 email_not_verified` |
 | Signed in and verified | Everything for users |
 | Role `ADMIN` (and verified) | `/api/admin/**` |
 
@@ -494,6 +498,7 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/currentuser` | Own profile: `publicId`, `firebaseUid`, `username`, `email`, `emailVerified`, `photoUrl`, `countryId`, `role` |
+| DELETE | `/api/currentuser?confirm=true` | Deletes the account for good: our data and the Firebase sign-in account. `204`; `409 last_admin` for the only admin |
 
 ### Signed in and verified
 
@@ -505,6 +510,7 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 | GET | `/api/currentuser/accounts` | Linked accounts: `platform`, `externalId`, `displayName`, `lastSyncedAt` |
 | POST | `/api/currentuser/accounts/{platform}/link` | Returns the platform login URL |
 | POST | `/api/currentuser/accounts/{platform}/{externalId}/sync` | Syncs one account |
+| DELETE | `/api/currentuser/accounts/{platform}/{externalId}` | Unlinks it: its games leave the library and the unlocks recorded from it are removed. `204` |
 | GET | `/api/games/{gameId}/stats` | `{"gameId", "achievements": [...]}`: global and own-country unlock percentages |
 | GET | `/api/currentuser/games?q=&tag=&mode=&collection=&sort=` | My library: owned games with cover, progress, playtime; sort `recent` (default), `name`, `playtime`, `progress`, `newest` |
 | GET | `/api/currentuser/collections` | My collections, in order, with game counts |
@@ -572,7 +578,7 @@ Every error is `{"error": "<code>", "message": "<text>"}`. Validation errors add
 | 401 | `unauthorized` (missing or invalid token) |
 | 403 | `email_not_verified`, `forbidden` |
 | 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `collection_not_found`, `not_found` |
-| 409 | `account_already_linked`, `already_verified`, `quick_access_full`, `collection_name_taken`, `collection_limit_reached` |
+| 409 | `account_already_linked`, `already_verified`, `quick_access_full`, `collection_name_taken`, `collection_limit_reached`, `last_admin` |
 | 422 | `profile_private`, `platform_not_supported`, `game_not_owned` |
 | 502 | `platform_unavailable`, `identity_provider_unavailable` |
 
@@ -603,6 +609,8 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 45, 46 | My library (saves `libraryGameId`), sorted by progress |
 | 47 – 53 | Collections: create (saves `collectionId`), list, add a game, browse it, rename, remove the game, delete |
 | 54, 55 | Achievement list of a game, without and with a token |
+| 56, 57 | Firebase: send me the verification e-mail; send me a password-reset e-mail |
+| 58 – 60 | Unlink my account; delete my account without confirm (safety check); **delete my account for good** (test accounts only) |
 
 **Collection Runner recipe** (17, 19, 20): Run collection → select **only that request** → Iterations 20 → Delay 3000–5000 ms.
 The script stores the cursor or stops the run by itself when there is nothing left or Steam stops answering.
@@ -612,6 +620,9 @@ The script stores the cursor or stops the run by itself when there is nothing le
 ```
 mvn clean test
 ```
+
+**GitHub Actions** (`.github/workflows/ci.yml`) runs `mvn verify` on every push and pull request, and pull requests into
+`main` also build the Docker image. A red cross on a PR means something broke: open the run to see which test failed.
 
 About 100 unit tests, no database or network needed (JUnit 5, AssertJ, Mockito):
 
@@ -687,11 +698,13 @@ are public but not documented by Valve and could change.
 | One grouped type-ahead endpoint (games, tags, franchises) | Agreed |
 | Tracking list filled only by the user; quick access capped at 20; default order by store release date | Agreed |
 | Collections hold only games the user owns (any game can still be tracked or pinned); library sorted by last played | Agreed |
+| Users can unlink accounts and delete their account (data and Firebase sign-in); the only admin cannot | GDPR right to erasure; nobody gets locked out |
 | Player search on a separate community page, only **opted-in** profiles | Privacy |
 | Readable game URLs: `/games/{id}-{slug}` | Shareable, search-engine friendly; the id decides |
 
 ## Changelog
 
+- **feat/account-control**: unlink a platform account, delete my account (GDPR), CI on GitHub Actions.
 - **feat/library**: my library (owned games with progress), collections of owned games (V17), achievement list per game.
 - **feat/search**: public full search with filters and sorting, type-ahead, tag and creator options (V16).
 - **feat/tracking**: tracking list with statuses and progress cards; quick access with 20 pins (V15).

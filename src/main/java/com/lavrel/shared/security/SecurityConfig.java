@@ -38,13 +38,14 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/error").permitAll()
                         // Platforms redirect the browser here without our token; the signed state identifies the user.
                         .requestMatchers("/api/platforms/*/callback", "/api/steam/callback").permitAll()
-                        // Reachable before the e-mail is verified: the own profile (to show "check your inbox")
+                        // Public catalog: search, filter options, game pages and achievement lists, no login needed.
+                        .requestMatchers(HttpMethod.GET, "/api/games", "/api/games/*", "/api/games/*/achievements",
+                                "/api/search", "/api/tags", "/api/creators").permitAll()
+                        // Reachable before the e-mail is verified: the own profile (to show "check your inbox"),
+                        // deleting the account (someone who signed up with another person's e-mail can undo it),
                         // and the dev-only verification shortcut (absent unless app.dev.verify-email-uids is set).
-                        // Public catalog: search, filter options and game pages, no login needed. Only published SFW games.
-                        .requestMatchers(HttpMethod.GET, "/api/games", "/api/games/*", "/api/games/*/achievements", "/api/search",
-                                "/api/tags",
-                                "/api/creators").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/currentuser").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/currentuser").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/dev/verify-my-email").authenticated()
                         // Role from the users table; only granted together with a verified e-mail.
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

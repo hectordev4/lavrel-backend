@@ -1,20 +1,24 @@
 package com.lavrel.user.adapter.in.web;
 
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase.AuthenticatedUser;
+import com.lavrel.user.application.port.in.DeleteAccountUseCase;
 import com.lavrel.user.application.port.in.GetCurrentUserUseCase;
 import com.lavrel.user.application.port.in.GetCurrentUserUseCase.CurrentUserView;
 import com.lavrel.user.application.port.in.UpdateUserCountryUseCase;
 import com.lavrel.user.application.port.in.UpdateUsernameUseCase;
 import com.lavrel.user.domain.Role;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,13 +30,16 @@ public class CurrentUserController {
     private final GetCurrentUserUseCase getCurrentUser;
     private final UpdateUserCountryUseCase updateUserCountry;
     private final UpdateUsernameUseCase updateUsername;
+    private final DeleteAccountUseCase deleteAccount;
 
     public CurrentUserController(GetCurrentUserUseCase getCurrentUser,
                                  UpdateUserCountryUseCase updateUserCountry,
-                                 UpdateUsernameUseCase updateUsername) {
+                                 UpdateUsernameUseCase updateUsername,
+                                 DeleteAccountUseCase deleteAccount) {
         this.getCurrentUser = getCurrentUser;
         this.updateUserCountry = updateUserCountry;
         this.updateUsername = updateUsername;
+        this.deleteAccount = deleteAccount;
     }
 
     /**
@@ -70,6 +77,18 @@ public class CurrentUserController {
 
     public record CurrentUserResponse(long publicId, String firebaseUid, String username, String email,
                                       boolean emailVerified, String photoUrl, Integer countryId, Role role) {
+    }
+
+    /**
+     * DELETE /api/currentuser?confirm=true deletes the account for good: our data and the Firebase sign-in account.
+     * Works before the e-mail is verified too. 204; 409 last_admin for the only admin.
+     */
+    @DeleteMapping
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteAccount(@AuthenticationPrincipal AuthenticatedUser user,
+                              @RequestParam(name = "confirm", defaultValue = "false")
+                              @AssertTrue(message = "add ?confirm=true to delete the account for good") boolean confirm) {
+        deleteAccount.deleteAccount(user.userId());
     }
 
     /** countryId may be null (clears the country). */

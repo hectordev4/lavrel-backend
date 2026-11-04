@@ -68,4 +68,12 @@ public class PlatformAccountPersistenceAdapter implements PlatformAccountReposit
         }
         return false;
     }
+
+    /** account_game rows go with it (ON DELETE CASCADE); unlocks keep a null source (ON DELETE SET NULL). */
+    @Override
+    @Transactional
+    public void delete(long platformAccountId) {
+        repository.deleteById(platformAccountId);
+        repository.flush();
+    }
 }

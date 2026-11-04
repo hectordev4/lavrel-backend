@@ -12,6 +12,12 @@ public interface RecordUnlocksUseCase {
      */
     int record(Command command);
 
+    /**
+     * Forgets the unlocks that were recorded from a platform account (used when the account is unlinked).
+     * Unlocks recorded from another account stay. @return how many were removed
+     */
+    int forgetAccount(long userId, long platformAccountId);
+
     record Command(long userId, Long sourceAccountId, List<Unlock> unlocks) {
     }
 

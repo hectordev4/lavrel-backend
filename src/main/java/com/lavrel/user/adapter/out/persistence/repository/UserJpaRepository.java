@@ -1,6 +1,7 @@
 package com.lavrel.user.adapter.out.persistence.repository;
 
 import com.lavrel.user.adapter.out.persistence.entity.UserJpaEntity;
+import com.lavrel.user.domain.Role;
 import java.time.Instant;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,6 +16,8 @@ public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
     Optional<UserJpaEntity> findByPublicId(long publicId);
 
     boolean existsByPublicId(long publicId);
+
+    long countByRole(Role role);
 
     /** Race-safe first login: a concurrent insert of the same firebase_uid is silently ignored. */
     @Modifying

@@ -2309,6 +2309,105 @@
         "description": "Sends Firebase's password-reset link to {{email}}. Useful for an account created with Google: setting a password through this link lets request 1 sign in to the same account (same Firebase UID) with e-mail and password."
       },
       "response": []
+    },
+    {
+      "name": "58. Unlink my account",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Unlinked (204) or not linked (404)\", function () { pm.expect(pm.response.code).to.be.oneOf([204, 404]); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/accounts/{{accountPlatform}}/{{accountExternalId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "accounts",
+            "{{accountPlatform}}",
+            "{{accountExternalId}}"
+          ]
+        },
+        "description": "Run 7 first. The account's games leave your library and the unlocks recorded from it are removed; tracked games and collections stay. Link (11) and sync (8) again to bring everything back."
+      },
+      "response": []
+    },
+    {
+      "name": "59. Delete my account without confirm (expect 400)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Refused without confirm=true\", function () { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql(\"validation_failed\"); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser"
+          ]
+        },
+        "description": "Safety check: without ?confirm=true nothing is deleted."
+      },
+      "response": []
+    },
+    {
+      "name": "60. DANGER - delete my account for good",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Deleted (204), or 409 last_admin\", function () { pm.expect(pm.response.code).to.be.oneOf([204, 409]); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser?confirm=true",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser"
+          ],
+          "query": [
+            {
+              "key": "confirm",
+              "value": "true"
+            }
+          ]
+        },
+        "description": "DELETES THE SIGNED-IN ACCOUNT FOR GOOD: our data (accounts, library, unlocks, tracking list, collections) and the Firebase sign-in account. Only use it with a throwaway test account; never include it in a Collection Runner run. The only admin gets 409 last_admin."
+      },
+      "response": []
     }
   ],
   "auth": {
