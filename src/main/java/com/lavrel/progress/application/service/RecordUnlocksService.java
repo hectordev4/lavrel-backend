@@ -33,4 +33,10 @@ public class RecordUnlocksService implements RecordUnlocksUseCase {
                 .toList();
         return repository.insertMissing(rows);
     }
+
+    @Override
+    @Transactional
+    public int forgetAccount(long userId, long platformAccountId) {
+        return repository.deleteBySourceAccount(userId, platformAccountId);
+    }
 }

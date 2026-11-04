@@ -19,4 +19,6 @@ public interface PlatformAccountRepositoryPort {
      *         The adapter translates the unique-constraint violation; no check-then-insert.
      */
     PlatformAccount save(PlatformAccount account);
+
+    void delete(long platformAccountId);
 }

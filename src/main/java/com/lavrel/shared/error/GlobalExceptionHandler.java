@@ -24,6 +24,7 @@ import com.lavrel.user.domain.IdentityProviderUnavailableException;
 import com.lavrel.user.domain.InvalidIdentityProofException;
 import com.lavrel.user.domain.InvalidRoleChangeException;
 import com.lavrel.user.domain.InvalidUsernameException;
+import com.lavrel.user.domain.LastAdminException;
 import com.lavrel.user.domain.PlatformAccountNotFoundException;
 import com.lavrel.user.domain.PublicUserNotFoundException;
 import com.lavrel.user.domain.UserNotFoundException;
@@ -198,6 +199,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CollectionLimitReachedException.class)
     public ResponseEntity<ApiError> collectionLimitReached(CollectionLimitReachedException e) {
         return error(HttpStatus.CONFLICT, "collection_limit_reached", e.getMessage());
+    }
+
+    @ExceptionHandler(LastAdminException.class)
+    public ResponseEntity<ApiError> lastAdmin(LastAdminException e) {
+        return error(HttpStatus.CONFLICT, "last_admin", e.getMessage());
     }
 
     @ExceptionHandler(AccountAlreadyLinkedException.class)
