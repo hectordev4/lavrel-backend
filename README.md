@@ -183,9 +183,9 @@ On the first start Flyway creates the whole schema (including 50 development cou
 
 ### Deploying
 
-The backend ships as a Docker image (`Dockerfile`, Java 21, non-root) and runs on **Google Cloud Run** inside its free
-monthly allowance. The image is built in Google Cloud, so Docker is not needed locally. Step by step, including secrets
-and costs: [docs/DEPLOY.md](docs/DEPLOY.md). Locally, keep using `mvn spring-boot:run`.
+The backend runs on **Render** (free instance) as a Docker web service: <https://lavrel.onrender.com>. Render builds the
+`Dockerfile` from `main` and deploys every merged pull request. Settings, environment variables, the Firebase secret
+file and troubleshooting: [docs/DEPLOY.md](docs/DEPLOY.md). Locally, keep using `mvn spring-boot:run`.
 
 ## Configuration
 
@@ -199,11 +199,11 @@ and costs: [docs/DEPLOY.md](docs/DEPLOY.md). Locally, keep using `mvn spring-boo
 | `FIREBASE_CREDENTIALS_PATH` | yes | Path to the Firebase service-account JSON |
 | `STEAM_API_KEY` | yes | Steam Web API key |
 | `STEAM_STATE_SECRET` | yes | At least 32 characters; signs the account-link `state` |
-| `STEAM_CALLBACK_URL` | no | Default `http://localhost:8080/api/steam/callback` (`/api/platforms/steam/callback` works too) |
+| `STEAM_CALLBACK_URL` | no | Default `http://localhost:8080/api/steam/callback`; on Render `https://lavrel.onrender.com/api/steam/callback` |
 | `FRONTEND_BASE_URL` | no | Empty: the link callback answers JSON. Set: it redirects to `{url}/{platform}/linked` |
 | `FAKE_DATA_ENABLED` | no | `true` enables the fake-data endpoints (development only) |
 | `CORS_ALLOWED_ORIGINS` | no | Browser origins allowed to call the API, comma-separated. Default `http://localhost:4200` |
-| `PORT` | no | HTTP port; set by Cloud Run. Default `8080` |
+| `PORT` | no | HTTP port (`10000` on Render). Default `8080` |
 
 Spring does not read `.env` by itself: `application.yml` imports it with
 `spring.config.import: optional:file:.env[.properties]`, so run the app from the project root.
