@@ -3,6 +3,12 @@ package com.lavrel.shared.error;
 import com.lavrel.catalog.domain.GameNotFoundException;
 import com.lavrel.catalog.domain.GameNotOnPlatformException;
 import com.lavrel.catalog.domain.InvalidComparisonException;
+import com.lavrel.library.domain.CollectionLimitReachedException;
+import com.lavrel.library.domain.CollectionNameTakenException;
+import com.lavrel.library.domain.CollectionNotFoundException;
+import com.lavrel.library.domain.GameNotOwnedException;
+import com.lavrel.library.domain.InvalidCollectionNameException;
+import com.lavrel.library.domain.InvalidCollectionOrderException;
 import com.lavrel.library.domain.ProfilePrivateException;
 import com.lavrel.shared.domain.PlatformNotSupportedException;
 import com.lavrel.shared.domain.PlatformUnavailableException;
@@ -112,6 +118,16 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, "invalid_quick_access_order", e.getMessage());
     }
 
+    @ExceptionHandler(InvalidCollectionNameException.class)
+    public ResponseEntity<ApiError> invalidCollectionName(InvalidCollectionNameException e) {
+        return error(HttpStatus.BAD_REQUEST, "invalid_collection_name", e.getMessage());
+    }
+
+    @ExceptionHandler(InvalidCollectionOrderException.class)
+    public ResponseEntity<ApiError> invalidCollectionOrder(InvalidCollectionOrderException e) {
+        return error(HttpStatus.BAD_REQUEST, "invalid_collection_order", e.getMessage());
+    }
+
     @ExceptionHandler(InvalidComparisonException.class)
     public ResponseEntity<ApiError> invalidComparison(InvalidComparisonException e) {
         return error(HttpStatus.BAD_REQUEST, "invalid_comparison", e.getMessage());
@@ -146,6 +162,11 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.NOT_FOUND, "game_not_tracked", e.getMessage());
     }
 
+    @ExceptionHandler(CollectionNotFoundException.class)
+    public ResponseEntity<ApiError> collectionNotFound(CollectionNotFoundException e) {
+        return error(HttpStatus.NOT_FOUND, "collection_not_found", e.getMessage());
+    }
+
     @ExceptionHandler(GameNotOnPlatformException.class)
     public ResponseEntity<ApiError> gameNotOnPlatform(GameNotOnPlatformException e) {
         return error(HttpStatus.NOT_FOUND, "game_not_on_platform", e.getMessage());
@@ -169,6 +190,16 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.CONFLICT, "quick_access_full", e.getMessage());
     }
 
+    @ExceptionHandler(CollectionNameTakenException.class)
+    public ResponseEntity<ApiError> collectionNameTaken(CollectionNameTakenException e) {
+        return error(HttpStatus.CONFLICT, "collection_name_taken", e.getMessage());
+    }
+
+    @ExceptionHandler(CollectionLimitReachedException.class)
+    public ResponseEntity<ApiError> collectionLimitReached(CollectionLimitReachedException e) {
+        return error(HttpStatus.CONFLICT, "collection_limit_reached", e.getMessage());
+    }
+
     @ExceptionHandler(AccountAlreadyLinkedException.class)
     public ResponseEntity<ApiError> accountAlreadyLinked(AccountAlreadyLinkedException e) {
         return error(HttpStatus.CONFLICT, "account_already_linked", e.getMessage());
@@ -180,6 +211,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> profilePrivate(ProfilePrivateException e) {
         return error(HttpStatus.UNPROCESSABLE_CONTENT, "profile_private",
                 "The platform profile is private. Make the game details public and try again.");
+    }
+
+    @ExceptionHandler(GameNotOwnedException.class)
+    public ResponseEntity<ApiError> gameNotOwned(GameNotOwnedException e) {
+        return error(HttpStatus.UNPROCESSABLE_CONTENT, "game_not_owned", e.getMessage());
     }
 
     @ExceptionHandler(PlatformNotSupportedException.class)

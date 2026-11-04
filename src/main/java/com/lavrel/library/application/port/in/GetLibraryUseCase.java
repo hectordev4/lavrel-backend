@@ -7,17 +7,20 @@ import java.time.LocalDate;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * "My library": the games the user owns in any linked account (and that are published in the catalog), with
- * progress. Filters work like the catalog search.
+ * progress. Filters work like the catalog search; collectionId narrows it to one of the user's collections.
  */
 public interface GetLibraryUseCase {
 
+    /** @throws com.lavrel.library.domain.CollectionNotFoundException if collectionId is not one of the user's */
     LibraryPage library(long userId, LibraryCriteria criteria);
 
     /** The compact constructor applies the defaults and limits. */
-    record LibraryCriteria(String query, List<Long> tagIds, Set<PlayerMode> modes, Sort sort, int page, int size) {
+    record LibraryCriteria(String query, List<Long> tagIds, Set<PlayerMode> modes, UUID collectionId, Sort sort,
+                           int page, int size) {
 
         public static final int DEFAULT_SIZE = 48;
         public static final int MAX_SIZE = 96;

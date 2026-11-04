@@ -10,7 +10,7 @@ class LibraryCriteriaTest {
 
     @Test
     void defaultsToRecentlyPlayedAndAFullGrid() {
-        LibraryCriteria c = new LibraryCriteria("  ", null, null, null, -1, 0);
+        LibraryCriteria c = new LibraryCriteria("  ", null, null, null, null, -1, 0);
         assertThat(c.query()).isNull();
         assertThat(c.sort()).isEqualTo(Sort.RECENT);
         assertThat(c.page()).isZero();
@@ -19,6 +19,6 @@ class LibraryCriteriaTest {
 
     @Test
     void sizeIsCapped() {
-        assertThat(new LibraryCriteria(null, null, null, Sort.NAME, 0, 1000).size()).isEqualTo(LibraryCriteria.MAX_SIZE);
+        assertThat(new LibraryCriteria(null, null, null, null, Sort.NAME, 0, 1000).size()).isEqualTo(LibraryCriteria.MAX_SIZE);
     }
 }

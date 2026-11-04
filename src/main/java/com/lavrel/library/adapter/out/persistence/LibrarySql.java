@@ -72,8 +72,14 @@ final class LibrarySql {
         return new Query(sql.toString(), params);
     }
 
-    /** Extension point for filters that only the library has. */
+    /** Filters that only the library has: one of the user's collections. */
     private static void addFilters(List<String> where, MapSqlParameterSource params, LibraryCriteria c) {
+        if (c.collectionId() != null) {
+            where.add("""
+                    EXISTS (SELECT 1 FROM collection_game cg JOIN collection c ON c.id = cg.collection_id
+                            WHERE cg.game_id = g.id AND c.public_id = :collectionId AND c.user_id = :userId)""");
+            params.addValue("collectionId", c.collectionId());
+        }
     }
 
     private static String orderBy(LibraryCriteria c) {

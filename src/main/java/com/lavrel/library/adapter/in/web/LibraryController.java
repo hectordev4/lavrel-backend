@@ -20,6 +20,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * GET /api/currentuser/games: the games the user owns (all linked accounts), for the "My library" grid.
- *  - q, tag (up to 5, all must apply), mode: like GET /api/games
+ *  - q, tag (up to 5, all must apply), mode: like GET /api/games; collection: one of the user's collections
  *  - sort: recent (default, last played first), name, playtime, progress, newest
  *  - page (from 0) and size (default 48, at most 96); hasMore tells whether a next page exists
  */
@@ -49,11 +50,12 @@ public class LibraryController {
             @Size(max = LibraryCriteria.MAX_TAGS) List<@NotNull @Positive Long> tagIds,
             @RequestParam(name = "mode", required = false)
             List<@Pattern(regexp = "(?i)single-player|co-op|multiplayer") String> modes,
+            @RequestParam(name = "collection", required = false) UUID collectionId,
             @RequestParam(name = "sort", required = false)
             @Pattern(regexp = "(?i)recent|name|playtime|progress|newest") String sort,
             @RequestParam(name = "page", defaultValue = "0") @Min(0) @Max(1000) int page,
             @RequestParam(name = "size", defaultValue = "48") @Min(1) @Max(LibraryCriteria.MAX_SIZE) int size) {
-        LibraryPage result = library.library(user.userId(), new LibraryCriteria(q, tagIds, parseModes(modes),
+        LibraryPage result = library.library(user.userId(), new LibraryCriteria(q, tagIds, parseModes(modes), collectionId,
                 sort == null ? null : Sort.valueOf(sort.toUpperCase(Locale.ROOT)), page, size));
         return new LibraryResponse(result.games().stream().map(LibraryGameResponse::from).toList(), result.page(),
                 result.size(), result.hasMore());
