@@ -25,6 +25,7 @@ pages are public and can be shown to people who are not logged in.
 9. [The catalog and the content policy](#the-catalog-and-the-content-policy)
 10. [Search](#search)
 11. [Tracking list and quick access](#tracking-list-and-quick-access)
+    - [My library and collections](#my-library-and-collections)
 12. [API reference](#api-reference)
 13. [Postman collection](#postman-collection)
 14. [Testing](#testing)
@@ -50,7 +51,8 @@ pages are public and can be shown to people who are not logged in.
 | Public search: full search with filters, type-ahead, filter options | Working |
 | Tracking list with statuses, progress cards and quick access (20 pins) | Working |
 | Admin tools: seed, walk all of Steam, enrich, refresh, exceptions, roles | Working |
-| Own library search with progress, achievement list per game | Planned |
+| My library (owned games, progress, filters) and collections of owned games | Working |
+| Achievement list per game with unlock state and percentages | Working |
 | Rate limiting and caching on public endpoints | Planned |
 | Community (opt-in profiles, player search, comments) | Planned |
 | Xbox and PSN | Planned (the platform layer is ready) |
@@ -125,7 +127,7 @@ src/main/java/com/lavrel
 └── devtools/    fake data, one-time e-mail verification
 src/main/resources
 ├── application.yml
-└── db/migration/   V1 … V16
+└── db/migration/   V1 … V17
 ```
 
 ### The Steam import (`catalog/application/service/steam`)
@@ -183,9 +185,9 @@ On the first start Flyway creates the whole schema (including 50 development cou
 
 ### Deploying
 
-The backend runs on **Render** (free instance) as a Docker web service: <https://lavrel.onrender.com>. Render builds the
-`Dockerfile` from `main` and deploys every merged pull request. Settings, environment variables, the Firebase secret
-file and troubleshooting: [docs/DEPLOY.md](docs/DEPLOY.md). Locally, keep using `mvn spring-boot:run`.
+The backend ships as a Docker image (`Dockerfile`, Java 21, non-root) and runs on **Google Cloud Run** inside its free
+monthly allowance. The image is built in Google Cloud, so Docker is not needed locally. Step by step, including secrets
+and costs: [docs/DEPLOY.md](docs/DEPLOY.md). Locally, keep using `mvn spring-boot:run`.
 
 ## Configuration
 
@@ -199,11 +201,11 @@ file and troubleshooting: [docs/DEPLOY.md](docs/DEPLOY.md). Locally, keep using 
 | `FIREBASE_CREDENTIALS_PATH` | yes | Path to the Firebase service-account JSON |
 | `STEAM_API_KEY` | yes | Steam Web API key |
 | `STEAM_STATE_SECRET` | yes | At least 32 characters; signs the account-link `state` |
-| `STEAM_CALLBACK_URL` | no | Default `http://localhost:8080/api/steam/callback`; on Render `https://lavrel.onrender.com/api/steam/callback` |
+| `STEAM_CALLBACK_URL` | no | Default `http://localhost:8080/api/steam/callback` (`/api/platforms/steam/callback` works too) |
 | `FRONTEND_BASE_URL` | no | Empty: the link callback answers JSON. Set: it redirects to `{url}/{platform}/linked` |
 | `FAKE_DATA_ENABLED` | no | `true` enables the fake-data endpoints (development only) |
 | `CORS_ALLOWED_ORIGINS` | no | Browser origins allowed to call the API, comma-separated. Default `http://localhost:4200` |
-| `PORT` | no | HTTP port (`10000` on Render). Default `8080` |
+| `PORT` | no | HTTP port; set by Cloud Run. Default `8080` |
 
 Spring does not read `.env` by itself: `application.yml` imports it with
 `spring.config.import: optional:file:.env[.properties]`, so run the app from the project root.
@@ -256,6 +258,7 @@ Flyway is the only source of schema changes. Never edit a migration that has bee
 | V14 | `game.content_exempt` (content-policy exceptions) |
 | V15 | `tracked_game` (tracking list and quick-access pins) |
 | V16 | Search: `pg_trgm`, `unaccent`, `lavrel_normalize()`, `game.search_name` with a trigram index, sort indexes |
+| V17 | `collection`, `collection_game` (collections of owned games) |
 
 There is no V8 on purpose (it was superseded by V9 before release). Flyway does not need consecutive numbers.
 Check what is applied with:
@@ -269,6 +272,9 @@ erDiagram
     users ||--o{ platform_account : links
     users ||--o{ user_achievement : earns
     users ||--o{ tracked_game : follows
+    users ||--o{ collection : organises
+    collection ||--o{ collection_game : holds
+    game ||--o{ collection_game : "is in"
     platform_account ||--o{ account_game : owns
     game ||--o{ account_game : "has"
     game ||--o{ tracked_game : "is followed"
@@ -308,7 +314,7 @@ reach the backend. There is no login by username.
 
 | Caller | Can call |
 |---|---|
-| Anyone, no token | `GET /actuator/health`, the link callbacks, and the public catalog: `GET /api/games`, `/api/games/{id}`, `/api/search`, `/api/tags`, `/api/creators` |
+| Anyone, no token | `GET /actuator/health`, the link callbacks, and the public catalog: `GET /api/games`, `/api/games/{id}`, `/api/games/{id}/achievements`, `/api/search`, `/api/tags`, `/api/creators` |
 | Signed in, e-mail **not** verified | Only `GET /api/currentuser` (it returns `emailVerified: false`, so the frontend shows "check your inbox"). Everything else is `403 email_not_verified` |
 | Signed in and verified | Everything for users |
 | Role `ADMIN` (and verified) | `/api/admin/**` |
@@ -454,6 +460,18 @@ catalog game can be tracked, owned or not (games from a sync are in the catalog)
 - **Quick access**: up to **20** pinned games, in the user's own order (positions 1..n, no gaps). The 21st answers
   `409 quick_access_full`. Removing a game from the list also unpins it.
 
+## My library and collections
+
+**My library** (`GET /api/currentuser/games`) is every game the user owns in any linked account, as long as it is
+published in the catalog: cover, name, progress (unlocked of total), playtime, last played, which accounts own it and
+whether it is tracked or pinned. It takes the same filters as search and is sorted by **last played** by default.
+
+**Collections** are named lists of the user's **own** games ("Platinum hunt", "Cozy games"); following games one does
+not own is what the tracking list is for. A game can be in several collections; up to 50 collections per user, names
+unique per user ignoring case. Collections are addressed by a public UUID. A game that leaves the library (an account is
+unlinked) stays saved in its collections but is hidden until it is owned again. Browse one with
+`GET /api/currentuser/games?collection={id}`.
+
 ## API reference
 
 Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `Authorization: Bearer <Firebase ID token>`.
@@ -466,6 +484,7 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 | GET | `/api/platforms/{platform}/callback`, `/api/steam/callback` | Where the platform redirects the browser after login |
 | GET | `/api/games` | Full search (see [Search](#search)) |
 | GET | `/api/games/{gameId}` | Game page (published games only; `404` otherwise) |
+| GET | `/api/games/{gameId}/achievements` | Achievement list with worldwide percentages; with a token also your unlocks and your country's percentage |
 | GET | `/api/search?q=` | Type-ahead |
 | GET | `/api/tags?q=` | Tag options |
 | GET | `/api/creators?role=&q=` | Franchise, developer or publisher options |
@@ -487,6 +506,12 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 | POST | `/api/currentuser/accounts/{platform}/link` | Returns the platform login URL |
 | POST | `/api/currentuser/accounts/{platform}/{externalId}/sync` | Syncs one account |
 | GET | `/api/games/{gameId}/stats` | `{"gameId", "achievements": [...]}`: global and own-country unlock percentages |
+| GET | `/api/currentuser/games?q=&tag=&mode=&collection=&sort=` | My library: owned games with cover, progress, playtime; sort `recent` (default), `name`, `playtime`, `progress`, `newest` |
+| GET | `/api/currentuser/collections` | My collections, in order, with game counts |
+| POST | `/api/currentuser/collections` | `{"name": "Cozy games"}`: create (`201`) |
+| PATCH / DELETE | `/api/currentuser/collections/{id}` | Rename / delete (the games stay in the library) |
+| PUT | `/api/currentuser/collections` | `{"collectionIds": [...]}`: new order |
+| PUT / DELETE | `/api/currentuser/collections/{id}/games/{gameId}` | Add an owned game / remove it. `204` |
 | GET | `/api/currentuser/tracked?status=&sort=` | Tracking list: `{"games": [cards]}` |
 | PUT | `/api/currentuser/tracked/{gameId}` | `{"status": "PLAYING"}`: add, or change the status |
 | DELETE | `/api/currentuser/tracked/{gameId}` | Remove. `204` |
@@ -543,17 +568,17 @@ Every error is `{"error": "<code>", "message": "<text>"}`. Validation errors add
 
 | Status | Codes |
 |---|---|
-| 400 | `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `country_not_found`, `invalid_identity_proof`, `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order` |
+| 400 | `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `country_not_found`, `invalid_identity_proof`, `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order`, `invalid_collection_name`, `invalid_collection_order` |
 | 401 | `unauthorized` (missing or invalid token) |
 | 403 | `email_not_verified`, `forbidden` |
-| 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `not_found` |
-| 409 | `account_already_linked`, `already_verified`, `quick_access_full` |
-| 422 | `profile_private`, `platform_not_supported` |
+| 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `collection_not_found`, `not_found` |
+| 409 | `account_already_linked`, `already_verified`, `quick_access_full`, `collection_name_taken`, `collection_limit_reached` |
+| 422 | `profile_private`, `platform_not_supported`, `game_not_owned` |
 | 502 | `platform_unavailable`, `identity_provider_unavailable` |
 
 ## Postman collection
 
-File: `postman/lavrel-backend.postman_collection.json`. Import it in Postman, open the collection's **Variables** tab and
+File: `postman/lavrel_backend.postman_collection.json`. Import it in Postman, open the collection's **Variables** tab and
 fill in the **Current value** column of `firebaseApiKey`, `email` and `password` (a Firebase e-mail/password user).
 Run request **1** first: it stores the ID token, which expires after about an hour (run it again on a `401`).
 
@@ -575,6 +600,9 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 31 – 34 | Tracking list: track, list, filter by status, remove (`trackGameId`) |
 | 35 – 38 | Quick access: pin, list, reorder, unpin |
 | 39 – 44 | Search, without token: popular, typo, filters, type-ahead, tags (saves `searchTagId`), franchises |
+| 45, 46 | My library (saves `libraryGameId`), sorted by progress |
+| 47 – 53 | Collections: create (saves `collectionId`), list, add a game, browse it, rename, remove the game, delete |
+| 54, 55 | Achievement list of a game, without and with a token |
 
 **Collection Runner recipe** (17, 19, 20): Run collection → select **only that request** → Iterations 20 → Delay 3000–5000 ms.
 The script stores the cursor or stops the run by itself when there is nothing left or Steam stops answering.
@@ -608,7 +636,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `Could not resolve placeholder 'X'` at start | Variable missing from `.env`, or the app was not started from the project root |
 | Flyway: `canceling statement due to statement timeout` | A migration tried to alter `flyway_schema_history` while Flyway holds it. Do that by hand, after the first start |
 | Flyway: `Found non-empty schema(s) "public" but no schema history table` | Tables exist from a manual run. Drop them and let Flyway create them |
-| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V16 must be there) |
+| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V17 must be there) |
 | V16 fails (`permission denied` or `function unaccent does not exist`) | Enable `pg_trgm` and `unaccent` in Supabase (Database → Extensions) and restart |
 | `401` with a token that looks valid | The token and the service-account key belong to different Firebase projects. The server log gives the reason |
 | `403 email_not_verified` | The e-mail is not verified, or the token is older than the verification: refresh it (`getIdToken(true)`, or Postman request 1) |
@@ -625,15 +653,13 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 
 Next, in this order:
 
-1. **Library and achievements**: `GET /api/currentuser/games` (own library with progress and the same filters as search)
-   and the achievement list per game with unlock percentages (hidden achievements shown by name only).
+1. **Systems a game is available on** (PC, Xbox, PlayStation; Switch later), shown on the game page and as a search filter.
 2. **Protect the public endpoints**: rate limiting and short caching on search and game pages.
-3. **Collections**: named lists on top of the tracking list ("Platinum hunt", "Cozy games").
-4. **Xbox and PSN**: their library, catalog and identity adapters, plus an admin "compare achievements" endpoint that
+3. **Xbox and PSN**: their library, catalog and identity adapters, plus an admin "compare achievements" endpoint that
    fills `achievement_mapping`.
-5. **Community**: opt-in public profiles and player search (by public id and display name), then comments so players on
+4. **Community**: opt-in public profiles and player search (by public id and display name), then comments so players on
    different platforms can help each other. Needs moderation tools (the `SUPPORT` role).
-6. **AI chat** that helps players find how to obtain achievements.
+5. **AI chat** that helps players find how to obtain achievements.
 
 Known gaps: no automated tests for persistence or the HTTP layer; Steam's "most played" chart and store-browse endpoints
 are public but not documented by Valve and could change.
@@ -660,11 +686,13 @@ are public but not documented by Valve and could change.
 | Search is public; filters: name, tags (**AND**), franchise, developer, publisher, player modes | Agreed |
 | One grouped type-ahead endpoint (games, tags, franchises) | Agreed |
 | Tracking list filled only by the user; quick access capped at 20; default order by store release date | Agreed |
+| Collections hold only games the user owns (any game can still be tracked or pinned); library sorted by last played | Agreed |
 | Player search on a separate community page, only **opted-in** profiles | Privacy |
 | Readable game URLs: `/games/{id}-{slug}` | Shareable, search-engine friendly; the id decides |
 
 ## Changelog
 
+- **feat/library**: my library (owned games with progress), collections of owned games (V17), achievement list per game.
 - **feat/search**: public full search with filters and sorting, type-ahead, tag and creator options (V16).
 - **feat/tracking**: tracking list with statuses and progress cards; quick access with 20 pins (V15).
 - **feat/dto**: entity classes (`User`, `PlatformAccount`, `Game`), accounts addressed by platform and external id,
