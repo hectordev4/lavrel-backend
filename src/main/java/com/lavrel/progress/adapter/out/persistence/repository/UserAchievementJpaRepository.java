@@ -25,4 +25,9 @@ public interface UserAchievementJpaRepository extends JpaRepository<UserAchievem
                        @Param("sourceAccountId") Long sourceAccountId,
                        @Param("unlockedAt") Instant unlockedAt,
                        @Param("recordedAt") Instant recordedAt);
+
+    @Modifying
+    @Query(value = "DELETE FROM user_achievement WHERE user_id = :userId AND source_account_id = :accountId",
+            nativeQuery = true)
+    int deleteBySourceAccount(@Param("userId") long userId, @Param("accountId") long accountId);
 }

@@ -11,4 +11,7 @@ public interface IdentityProviderAdminPort {
 
     /** @throws IdentityProviderUnavailableException if the provider fails or refuses the change */
     void markEmailVerified(String firebaseUid);
+
+    /** Removes the sign-in account. Nothing happens if it does not exist anymore. */
+    void deleteUser(String firebaseUid);
 }

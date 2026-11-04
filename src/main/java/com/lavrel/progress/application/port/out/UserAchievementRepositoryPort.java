@@ -10,4 +10,7 @@ public interface UserAchievementRepositoryPort {
 
     /** Inserts the ones that do not exist yet. @return number actually inserted */
     int insertMissing(Collection<UserAchievement> unlocks);
+
+    /** Deletes the user's unlocks that were recorded from that platform account. @return how many */
+    int deleteBySourceAccount(long userId, long platformAccountId);
 }

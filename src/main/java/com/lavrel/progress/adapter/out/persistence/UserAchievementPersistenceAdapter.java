@@ -38,4 +38,10 @@ public class UserAchievementPersistenceAdapter implements UserAchievementReposit
         }
         return inserted;
     }
+
+    @Override
+    @Transactional
+    public int deleteBySourceAccount(long userId, long platformAccountId) {
+        return repository.deleteBySourceAccount(userId, platformAccountId);
+    }
 }

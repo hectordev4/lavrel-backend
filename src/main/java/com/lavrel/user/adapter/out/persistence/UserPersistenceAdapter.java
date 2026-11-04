@@ -3,6 +3,7 @@ package com.lavrel.user.adapter.out.persistence;
 import com.lavrel.user.adapter.out.persistence.mapper.UserMapper;
 import com.lavrel.user.adapter.out.persistence.repository.UserJpaRepository;
 import com.lavrel.user.application.port.out.UserRepositoryPort;
+import com.lavrel.user.domain.Role;
 import com.lavrel.user.domain.User;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -57,5 +58,18 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
                     .orElseThrow(() -> new IllegalStateException("User vanished after insert: " + user.firebaseUid()));
         }
         return UserMapper.toDomain(repository.saveAndFlush(UserMapper.toEntity(user)));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByRole(Role role) {
+        return repository.countByRole(role);
+    }
+
+    @Override
+    @Transactional
+    public void delete(long id) {
+        repository.deleteById(id);
+        repository.flush();
     }
 }
