@@ -14,16 +14,16 @@ public class AchievementJpaEntity {
     @Column(name = "game_id", nullable = false)
     private long gameId;
 
-    @Column(name = "steam_achievement_id", nullable = false)
+    @Column(name = "steam_achievement_id", nullable = false, length = 1024)
     private String steamAchievementId;
 
-    @Column(name = "name", nullable = false)
+    @Column(name = "name", nullable = false, length = 1024)
     private String name;
 
-    @Column(name = "description", length = 2000)
+    @Column(name = "description", length = 8000)
     private String description;
 
-    @Column(name = "icon_url")
+    @Column(name = "icon_url", length = 1024)
     private String iconUrl;
 
     @Column(name = "hidden", nullable = false)
