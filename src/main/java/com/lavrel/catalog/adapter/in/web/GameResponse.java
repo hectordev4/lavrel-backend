@@ -1,6 +1,7 @@
 package com.lavrel.catalog.adapter.in.web;
 
 import com.lavrel.catalog.application.port.in.GetGameUseCase.GameDetails;
+import com.lavrel.catalog.domain.GameSystem;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -8,6 +9,7 @@ import java.util.Map;
 /**
  * The JSON of GET /api/games/{id}. Kept separate from the use case's read model so the API shape can change
  * without touching the application layer (and the other way round).
+ * availableOn: the systems it is sold on (PC, XBOX, PLAYSTATION).
  * slug is the readable part of the page address: the frontend builds /games/{id}-{slug}; only the id matters.
  */
 public record GameResponse(long id, String title, String slug, String coverImageUrl, String description,
@@ -15,7 +17,8 @@ public record GameResponse(long id, String title, String slug, String coverImage
                            boolean free, Integer requiredAge, List<String> developers, List<String> publishers,
                            List<String> franchises, List<Tag> tags, List<Genre> genres,
                            Map<String, Boolean> features, int accessibilityFeatureCount,
-                           List<FeatureInfo> allFeatures, List<AgeRating> ageRatings) {
+                           List<FeatureInfo> allFeatures, List<AgeRating> ageRatings,
+                           List<GameSystem> availableOn) {
 
     public static GameResponse from(GameDetails d) {
         return new GameResponse(d.id(), d.title(), d.slug(), d.coverImageUrl(), d.description(), d.storeUrl(),
@@ -27,7 +30,8 @@ public record GameResponse(long id, String title, String slug, String coverImage
                 d.genres().stream().map(g -> new Genre(g.id(), g.name())).toList(),
                 d.features(), d.accessibilityFeatureCount(),
                 d.allFeatures().stream().map(f -> new FeatureInfo(f.id(), f.name(), f.group())).toList(),
-                d.ageRatings().stream().map(r -> new AgeRating(r.board(), r.rating(), r.descriptors())).toList());
+                d.ageRatings().stream().map(r -> new AgeRating(r.board(), r.rating(), r.descriptors())).toList(),
+                d.availableOn());
     }
 
     public record Platforms(boolean windows, boolean mac, boolean linux) {

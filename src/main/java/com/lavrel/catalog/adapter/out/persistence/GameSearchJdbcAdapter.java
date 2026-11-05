@@ -4,6 +4,7 @@ import com.lavrel.catalog.application.port.in.SearchGamesUseCase.GameCard;
 import com.lavrel.catalog.application.port.in.SearchGamesUseCase.GamePage;
 import com.lavrel.catalog.application.port.in.SearchGamesUseCase.GameSearchCriteria;
 import com.lavrel.catalog.application.port.out.GameSearchQueryPort;
+import com.lavrel.catalog.domain.GameSystem;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -34,11 +35,13 @@ public class GameSearchJdbcAdapter implements GameSearchQueryPort {
 
     static GameCard card(ResultSet rs, int i) throws SQLException {
         String tags = rs.getString("top_tags");
+        String systems = rs.getString("systems");
         return new GameCard(rs.getLong("id"), rs.getString("title"), rs.getString("cover_image_url"),
                 rs.getObject("release_date", LocalDate.class), rs.getBoolean("windows"), rs.getBoolean("mac"),
                 rs.getBoolean("linux"), (Integer) rs.getObject("review_count", Integer.class),
                 (Integer) rs.getObject("review_percent_positive", Integer.class),
                 tags == null ? List.of() : Arrays.asList(tags.split("\\|")),
-                rs.getBoolean("single_player"), rs.getBoolean("co_op"), rs.getBoolean("multiplayer"));
+                rs.getBoolean("single_player"), rs.getBoolean("co_op"), rs.getBoolean("multiplayer"),
+                systems == null ? List.of() : Arrays.stream(systems.split("\\|")).map(GameSystem::valueOf).toList());
     }
 }

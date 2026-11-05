@@ -26,7 +26,7 @@ public class QuickSearchService implements QuickSearchUseCase {
 
     @Override
     public QuickResults search(String query) {
-        GameSearchCriteria criteria = new GameSearchCriteria(query, null, null, null, null, null, Sort.RELEVANCE, 0,
+        GameSearchCriteria criteria = new GameSearchCriteria(query, null, null, null, null, null, null, Sort.RELEVANCE, 0,
                 GAMES);
         return new QuickResults(games.search(criteria).games(), options.tags(criteria.query(), TAGS),
                 options.creators(CreatorRole.FRANCHISE, criteria.query(), FRANCHISES));
