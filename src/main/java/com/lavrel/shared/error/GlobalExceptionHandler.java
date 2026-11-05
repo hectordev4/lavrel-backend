@@ -10,6 +10,7 @@ import com.lavrel.library.domain.GameNotOwnedException;
 import com.lavrel.library.domain.InvalidCollectionNameException;
 import com.lavrel.library.domain.InvalidCollectionOrderException;
 import com.lavrel.library.domain.ProfilePrivateException;
+import com.lavrel.profile.domain.ProfileNotFoundException;
 import com.lavrel.shared.domain.PlatformNotSupportedException;
 import com.lavrel.shared.domain.PlatformUnavailableException;
 import com.lavrel.shared.error.ApiError.FieldProblem;
@@ -161,6 +162,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(GameNotTrackedException.class)
     public ResponseEntity<ApiError> gameNotTracked(GameNotTrackedException e) {
         return error(HttpStatus.NOT_FOUND, "game_not_tracked", e.getMessage());
+    }
+
+    @ExceptionHandler(ProfileNotFoundException.class)
+    public ResponseEntity<ApiError> profileNotFound(ProfileNotFoundException e) {
+        return error(HttpStatus.NOT_FOUND, "profile_not_found", e.getMessage());
     }
 
     @ExceptionHandler(CollectionNotFoundException.class)
