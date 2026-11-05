@@ -1,6 +1,7 @@
 package com.lavrel.profile.adapter.in.web;
 
 import com.lavrel.profile.application.port.in.ViewProfilesUseCase;
+import com.lavrel.profile.application.port.in.ViewProfilesUseCase.Avatar;
 import com.lavrel.profile.application.port.in.ViewProfilesUseCase.Country;
 import com.lavrel.profile.application.port.in.ViewProfilesUseCase.ProfileHeader;
 import com.lavrel.profile.application.port.in.ViewProfilesUseCase.PublicProfile;
@@ -55,10 +56,11 @@ public class PublicProfileController {
 
     /** country and platforms only when the user opted in; platforms are badges, never account names or ids. */
     public record ProfileResponse(long publicId, String username, YearMonth memberSince, Country country,
-                                  List<Platform> platforms) {
+                                  List<Platform> platforms, Avatar avatar) {
 
         static ProfileResponse from(ProfileHeader h) {
-            return new ProfileResponse(h.publicId(), h.username(), h.memberSince(), h.country(), h.platforms());
+            return new ProfileResponse(h.publicId(), h.username(), h.memberSince(), h.country(), h.platforms(),
+                    h.avatar());
         }
     }
 }

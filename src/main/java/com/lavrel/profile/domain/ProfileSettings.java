@@ -15,24 +15,56 @@ public class ProfileSettings {
     private boolean showCountry;
     private boolean showPlatforms;
     private boolean showAvatar;
+    private AvatarKind avatarKind;
+    private String avatarValue;
 
     private ProfileSettings(long userId, boolean profilePublic, boolean showCountry, boolean showPlatforms,
-                            boolean showAvatar) {
+                            boolean showAvatar, AvatarKind avatarKind, String avatarValue) {
         this.userId = userId;
         this.profilePublic = profilePublic;
         this.showCountry = showCountry;
         this.showPlatforms = showPlatforms;
         this.showAvatar = showAvatar;
+        this.avatarKind = avatarKind == null ? AvatarKind.GENERATED : avatarKind;
+        this.avatarValue = avatarValue;
     }
 
     /** Everything private. */
     public static ProfileSettings defaults(long userId) {
-        return new ProfileSettings(userId, false, false, false, false);
+        return new ProfileSettings(userId, false, false, false, false, AvatarKind.GENERATED, null);
     }
 
     public static ProfileSettings restore(long userId, boolean profilePublic, boolean showCountry,
-                                          boolean showPlatforms, boolean showAvatar) {
-        return new ProfileSettings(userId, profilePublic, showCountry, showPlatforms, showAvatar);
+                                          boolean showPlatforms, boolean showAvatar, AvatarKind avatarKind,
+                                          String avatarValue) {
+        return new ProfileSettings(userId, profilePublic, showCountry, showPlatforms, showAvatar, avatarKind,
+                avatarValue);
+    }
+
+    /** @throws InvalidAvatarException if the id is not in the gallery */
+    public void chooseGalleryAvatar(String galleryId) {
+        if (!AvatarGallery.contains(galleryId)) {
+            throw new InvalidAvatarException("Unknown gallery picture: " + galleryId);
+        }
+        avatarKind = AvatarKind.GALLERY;
+        avatarValue = galleryId;
+    }
+
+    /** storagePath: where the stored picture is (Supabase Storage). */
+    public void useUploadedAvatar(String storagePath) {
+        avatarKind = AvatarKind.UPLOADED;
+        avatarValue = storagePath;
+    }
+
+    /** Back to the generated avatar. */
+    public void resetAvatar() {
+        avatarKind = AvatarKind.GENERATED;
+        avatarValue = null;
+    }
+
+    /** The stored picture's path when the avatar is an upload, otherwise null (nothing to delete). */
+    public String uploadedPath() {
+        return avatarKind == AvatarKind.UPLOADED ? avatarValue : null;
     }
 
     /** Partial update: null keeps the current value. @return true if anything changed */
@@ -77,5 +109,14 @@ public class ProfileSettings {
     /** The chosen or uploaded picture; otherwise others see the generated avatar. */
     public boolean showAvatar() {
         return showAvatar;
+    }
+
+    public AvatarKind avatarKind() {
+        return avatarKind;
+    }
+
+    /** The gallery id (GALLERY) or the storage path (UPLOADED); null for GENERATED. */
+    public String avatarValue() {
+        return avatarValue;
     }
 }

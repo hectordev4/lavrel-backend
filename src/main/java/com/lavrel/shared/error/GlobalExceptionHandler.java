@@ -10,6 +10,8 @@ import com.lavrel.library.domain.GameNotOwnedException;
 import com.lavrel.library.domain.InvalidCollectionNameException;
 import com.lavrel.library.domain.InvalidCollectionOrderException;
 import com.lavrel.library.domain.ProfilePrivateException;
+import com.lavrel.profile.domain.AvatarStorageUnavailableException;
+import com.lavrel.profile.domain.InvalidAvatarException;
 import com.lavrel.profile.domain.InvalidShelfException;
 import com.lavrel.profile.domain.ProfileNotFoundException;
 import com.lavrel.profile.domain.ShelfLimitReachedException;
@@ -131,6 +133,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidCollectionOrderException.class)
     public ResponseEntity<ApiError> invalidCollectionOrder(InvalidCollectionOrderException e) {
         return error(HttpStatus.BAD_REQUEST, "invalid_collection_order", e.getMessage());
+    }
+
+    @ExceptionHandler(InvalidAvatarException.class)
+    public ResponseEntity<ApiError> invalidAvatar(InvalidAvatarException e) {
+        return error(HttpStatus.BAD_REQUEST, "invalid_avatar", e.getMessage());
+    }
+
+    @ExceptionHandler(AvatarStorageUnavailableException.class)
+    public ResponseEntity<ApiError> avatarStorageUnavailable(AvatarStorageUnavailableException e) {
+        log.warn("Avatar storage unavailable: {}", e.toString());
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "avatar_storage_unavailable",
+                "Pictures cannot be uploaded right now. Try again later.");
     }
 
     @ExceptionHandler(InvalidShelfException.class)

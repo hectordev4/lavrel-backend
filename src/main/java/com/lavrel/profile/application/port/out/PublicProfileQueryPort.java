@@ -17,6 +17,9 @@ public interface PublicProfileQueryPort {
     /** The internal user id behind a public profile, to build its shelves. Empty if not public. */
     Optional<Long> findUserId(long publicId);
 
+    /** Any user's internal id by public id, public profile or not. For admin tools only. */
+    Optional<Long> findAnyUserId(long publicId);
+
     /** By name (accent and case insensitive) or, when exactPublicId is set, that one profile. */
     List<ProfileHeader> search(String query, Long exactPublicId, int limit, long offset);
 }

@@ -1,5 +1,6 @@
 package com.lavrel.profile.application.port.in;
 
+import com.lavrel.profile.domain.AvatarKind;
 import com.lavrel.profile.domain.ProfileNotFoundException;
 import com.lavrel.profile.domain.ShelfType;
 import com.lavrel.shared.domain.Platform;
@@ -22,9 +23,18 @@ public interface ViewProfilesUseCase {
      */
     List<ProfileHeader> search(String query, int page);
 
-    /** country and platforms are null / empty unless the user opted into showing them. */
+    /**
+     * country and platforms are null / empty unless the user opted into showing them. avatar is the chosen or uploaded
+     * picture only if the user opted in; otherwise GENERATED (the frontend draws it from the public id).
+     */
     record ProfileHeader(long publicId, String username, YearMonth memberSince, Country country,
-                         List<Platform> platforms) {
+                         List<Platform> platforms, Avatar avatar) {
+    }
+
+    /** galleryId for GALLERY, imageUrl for UPLOADED; both null for GENERATED. */
+    record Avatar(AvatarKind kind, String galleryId, String imageUrl) {
+
+        public static final Avatar GENERATED = new Avatar(AvatarKind.GENERATED, null, null);
     }
 
     record Country(String code, String name) {

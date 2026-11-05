@@ -80,7 +80,9 @@
               "const me = pm.response.json();",
               "pm.test(\"Has a 16-digit publicId\", function () { pm.expect(String(me.publicId)).to.have.lengthOf(16); });",
               "pm.test(\"Has emailVerified and role\", function () { pm.expect(me.emailVerified).to.be.a(\"boolean\"); pm.expect(me.role).to.be.oneOf([\"USER\", \"SUPPORT\", \"ADMIN\"]); });",
-              "if (!me.emailVerified) { console.log(\"E-mail not verified: every other endpoint will answer 403 email_not_verified.\"); }"
+              "if (!me.emailVerified) { console.log(\"E-mail not verified: every other endpoint will answer 403 email_not_verified.\"); }",
+              "const me = pm.response.json();",
+              "if (me.publicId) { pm.collectionVariables.set(\"myPublicId\", String(me.publicId)); pm.collectionVariables.set(\"myUsername\", me.username); }"
             ]
           }
         }
@@ -2172,7 +2174,9 @@
             "exec": [
               "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
               "pm.test(\"Has my unlock count\", function () { pm.expect(pm.response.json().unlocked).to.be.a(\"number\"); });",
-              "console.log(pm.response.json());"
+              "console.log(pm.response.json());",
+              "const firstUnlocked = pm.response.json().achievements.find(a => a.unlocked);",
+              "if (firstUnlocked) { pm.collectionVariables.set(\"showcaseAchievementId\", String(firstUnlocked.id)); }"
             ]
           }
         }
@@ -2596,6 +2600,611 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "66. Profile: my settings",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/profile",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "profile"
+          ]
+        },
+        "description": "Everything is private by default."
+      },
+      "response": []
+    },
+    {
+      "name": "67. Profile: make it public (with country, badges and picture)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/profile",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "profile"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"public\": true,\n  \"showCountry\": true,\n  \"showPlatforms\": true,\n  \"showAvatar\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Any subset of the fields. Platform badges only say which platforms; never account names or ids."
+      },
+      "response": []
+    },
+    {
+      "name": "68. Shelves: add a STATS shelf",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Created (201) or already there (400)\", function () { pm.expect(pm.response.code).to.be.oneOf([201, 400]); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/profile/shelves",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "profile",
+            "shelves"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"STATS\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Types: COLLECTION (needs collectionId), RECENTLY_PLAYED, PLAYING, COMPLETED, ACHIEVEMENTS, STATS. Up to 10 shelves."
+      },
+      "response": []
+    },
+    {
+      "name": "69. Shelves: add a RECENTLY_PLAYED shelf with a title",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Created (201) or already there (400)\", function () { pm.expect(pm.response.code).to.be.oneOf([201, 400]); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/profile/shelves",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "profile",
+            "shelves"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"RECENTLY_PLAYED\",\n  \"title\": \"Lately\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "70. Shelves: add an ACHIEVEMENTS shelf (saves shelfId)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
+              "pm.collectionVariables.set(\"shelfId\", pm.response.json().id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/profile/shelves",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "profile",
+            "shelves"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"ACHIEVEMENTS\",\n  \"title\": \"Proudest unlocks\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "71. Shelves: pick the achievements to show",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/profile/shelves/{{shelfId}}/achievements",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "profile",
+            "shelves",
+            "{{shelfId}}",
+            "achievements"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"achievementIds\": [{{showcaseAchievementId}}]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Run 55 first (it saves one of your unlocked achievements). Up to 12, only ones you unlocked."
+      },
+      "response": []
+    },
+    {
+      "name": "72. Shelves: list mine",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/profile/shelves",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "profile",
+            "shelves"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "73. Public profile (no token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/{{myPublicId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "{{myPublicId}}"
+          ]
+        },
+        "description": "What anyone sees: header plus the shelves, already filled. A private profile answers 404 profile_not_found."
+      },
+      "response": []
+    },
+    {
+      "name": "74. Player search (no token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/users?q={{myUsername}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "{{myUsername}}"
+            }
+          ]
+        },
+        "description": "By name (2+ characters) or an exact 16-digit public id. Only public profiles."
+      },
+      "response": []
+    },
+    {
+      "name": "75. Avatars: gallery ids (no token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/avatars/gallery",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "avatars",
+            "gallery"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "76. Avatars: pick one from the gallery",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/profile/avatar/gallery",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "profile",
+            "avatar",
+            "gallery"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"galleryId\": \"gallery-07\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "77. Avatars: upload a picture",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "image/png"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/profile/avatar",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "profile",
+            "avatar"
+          ]
+        },
+        "body": {
+          "mode": "file",
+          "file": {
+            "src": ""
+          }
+        },
+        "description": "Body tab: choose a JPG, PNG or GIF file (up to 2 MB; GIFs up to 1 MB and 512x512, animation kept). Set the Content-Type header to match. Needs SUPABASE_URL and SUPABASE_SERVICE_KEY, otherwise 503 avatar_storage_unavailable."
+      },
+      "response": []
+    },
+    {
+      "name": "78. Avatars: back to the generated one",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/profile/avatar",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "profile",
+            "avatar"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "79. Shelves: delete the ACHIEVEMENTS shelf",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/profile/shelves/{{shelfId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "profile",
+            "shelves",
+            "{{shelfId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "80. Profile: private again",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/profile",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "profile"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"public\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
     }
   ],
   "auth": {
@@ -2659,6 +3268,22 @@
     },
     {
       "key": "collectionId",
+      "value": ""
+    },
+    {
+      "key": "myPublicId",
+      "value": ""
+    },
+    {
+      "key": "myUsername",
+      "value": ""
+    },
+    {
+      "key": "showcaseAchievementId",
+      "value": ""
+    },
+    {
+      "key": "shelfId",
       "value": ""
     }
   ]

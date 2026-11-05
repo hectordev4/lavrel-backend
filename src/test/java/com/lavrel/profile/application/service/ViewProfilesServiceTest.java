@@ -42,7 +42,8 @@ class ViewProfilesServiceTest {
     void shelvesAreFilledInTheUsersOrder() {
         long publicId = 1234567890123456L;
         when(query.findHeader(publicId)).thenReturn(Optional.of(new ViewProfilesUseCase.ProfileHeader(publicId,
-                "SwiftOtter", java.time.YearMonth.of(2026, 11), null, java.util.List.of())));
+                "SwiftOtter", java.time.YearMonth.of(2026, 11), null, java.util.List.of(),
+                ViewProfilesUseCase.Avatar.GENERATED)));
         when(query.findUserId(publicId)).thenReturn(Optional.of(7L));
         java.time.Instant t = java.time.Instant.EPOCH;
         when(shelves.findAll(7L)).thenReturn(java.util.List.of(

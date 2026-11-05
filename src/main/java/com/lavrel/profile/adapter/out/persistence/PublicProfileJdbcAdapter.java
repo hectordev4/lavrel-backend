@@ -1,8 +1,11 @@
 package com.lavrel.profile.adapter.out.persistence;
 
+import com.lavrel.profile.application.port.in.ViewProfilesUseCase.Avatar;
 import com.lavrel.profile.application.port.in.ViewProfilesUseCase.Country;
 import com.lavrel.profile.application.port.in.ViewProfilesUseCase.ProfileHeader;
+import com.lavrel.profile.application.port.out.AvatarStoragePort;
 import com.lavrel.profile.application.port.out.PublicProfileQueryPort;
+import com.lavrel.profile.domain.AvatarKind;
 import com.lavrel.shared.domain.Platform;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -29,22 +32,26 @@ public class PublicProfileJdbcAdapter implements PublicProfileQueryPort {
                    CASE WHEN ps.show_country THEN c.name END AS country_name,
                    CASE WHEN ps.show_platforms
                         THEN (SELECT string_agg(DISTINCT pa.platform, '|') FROM platform_account pa
-                              WHERE pa.user_id = u.id) END AS platforms
+                              WHERE pa.user_id = u.id) END AS platforms,
+                   CASE WHEN ps.show_avatar THEN ps.avatar_kind END AS avatar_kind,
+                   CASE WHEN ps.show_avatar THEN ps.avatar_value END AS avatar_value
             FROM users u
             JOIN profile_settings ps ON ps.user_id = u.id AND ps.profile_public
             LEFT JOIN country c ON c.id = u.country_id
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final AvatarStoragePort storage;
 
-    public PublicProfileJdbcAdapter(NamedParameterJdbcTemplate jdbc) {
+    public PublicProfileJdbcAdapter(NamedParameterJdbcTemplate jdbc, AvatarStoragePort storage) {
         this.jdbc = jdbc;
+        this.storage = storage;
     }
 
     @Override
     public Optional<ProfileHeader> findHeader(long publicId) {
         return jdbc.query(HEADER + "WHERE u.public_id = :publicId", new MapSqlParameterSource("publicId", publicId),
-                PublicProfileJdbcAdapter::header).stream().findFirst();
+                this::header).stream().findFirst();
     }
 
     @Override
@@ -54,6 +61,12 @@ public class PublicProfileJdbcAdapter implements PublicProfileQueryPort {
                         WHERE u.public_id = :publicId
                         """, new MapSqlParameterSource("publicId", publicId), Long.class)
                 .stream().findFirst();
+    }
+
+    @Override
+    public Optional<Long> findAnyUserId(long publicId) {
+        return jdbc.queryForList("SELECT id FROM users WHERE public_id = :publicId",
+                new MapSqlParameterSource("publicId", publicId), Long.class).stream().findFirst();
     }
 
     @Override
@@ -70,15 +83,27 @@ public class PublicProfileJdbcAdapter implements PublicProfileQueryPort {
                         .addValue("exactId", exactPublicId, Types.BIGINT)
                         .addValue("limit", limit)
                         .addValue("offset", offset),
-                PublicProfileJdbcAdapter::header);
+                this::header);
     }
 
-    private static ProfileHeader header(ResultSet rs, int i) throws SQLException {
+    private ProfileHeader header(ResultSet rs, int i) throws SQLException {
         String code = rs.getString("country_code");
         String platforms = rs.getString("platforms");
         return new ProfileHeader(rs.getLong("public_id"), rs.getString("username"),
                 YearMonth.from(rs.getTimestamp("created_at").toInstant().atZone(ZoneOffset.UTC)),
                 code == null ? null : new Country(code, rs.getString("country_name")),
-                platforms == null ? List.of() : Arrays.stream(platforms.split("\\|")).map(Platform::valueOf).toList());
+                platforms == null ? List.of() : Arrays.stream(platforms.split("\\|")).map(Platform::valueOf).toList(),
+                avatar(rs.getString("avatar_kind"), rs.getString("avatar_value")));
+    }
+
+    private Avatar avatar(String kind, String value) {
+        if (kind == null || value == null) {
+            return Avatar.GENERATED;
+        }
+        return switch (AvatarKind.valueOf(kind)) {
+            case GALLERY -> new Avatar(AvatarKind.GALLERY, value, null);
+            case UPLOADED -> new Avatar(AvatarKind.UPLOADED, null, storage.publicUrl(value));
+            case GENERATED -> Avatar.GENERATED;
+        };
     }
 }
