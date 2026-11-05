@@ -2,6 +2,7 @@ package com.lavrel.catalog.adapter.out.persistence;
 
 import com.lavrel.catalog.application.port.in.SearchGamesUseCase.GameSearchCriteria;
 import com.lavrel.catalog.application.port.in.SearchGamesUseCase.PlayerMode;
+import com.lavrel.catalog.domain.GameSystem;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -26,9 +27,11 @@ final class GameSearchSql {
                     WHERE gt.game_id = g.id AND gt.position < 3) AS top_tags,
                    EXISTS (SELECT 1 FROM game_feature gf WHERE gf.game_id = g.id AND gf.feature_id IN (%s)) AS single_player,
                    EXISTS (SELECT 1 FROM game_feature gf WHERE gf.game_id = g.id AND gf.feature_id IN (%s)) AS co_op,
-                   EXISTS (SELECT 1 FROM game_feature gf WHERE gf.game_id = g.id AND gf.feature_id IN (%s)) AS multiplayer
+                   EXISTS (SELECT 1 FROM game_feature gf WHERE gf.game_id = g.id AND gf.feature_id IN (%s)) AS multiplayer,
+                   %s AS systems
             FROM game g
-            """.formatted(ids(PlayerMode.SINGLE_PLAYER), ids(PlayerMode.CO_OP), ids(PlayerMode.MULTIPLAYER));
+            """.formatted(ids(PlayerMode.SINGLE_PLAYER), ids(PlayerMode.CO_OP), ids(PlayerMode.MULTIPLAYER),
+                    GameFilterSql.SYSTEMS_COLUMN);
 
     private GameSearchSql() {
     }
@@ -62,6 +65,12 @@ final class GameSearchSql {
             String p = "mode" + m++;
             where.add(GameFilterSql.modeCondition(p));
             params.addValue(p, mode.featureIds());
+        }
+        int s = 0;
+        for (GameSystem system : c.systems().stream().sorted().toList()) {
+            String p = "system" + s++;
+            where.add(GameFilterSql.systemCondition(p));
+            params.addValue(p, system.name());
         }
         sql.append("WHERE ").append(String.join("\n  AND ", where)).append('\n');
         sql.append("ORDER BY ").append(orderBy(c)).append('\n');

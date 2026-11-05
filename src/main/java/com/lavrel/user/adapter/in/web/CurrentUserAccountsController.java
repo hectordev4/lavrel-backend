@@ -31,10 +31,14 @@ public class CurrentUserAccountsController {
     }
 
     @GetMapping
-    public List<AccountResponse> listAccounts(@AuthenticationPrincipal AuthenticatedUser user) {
-        return getPlatformAccounts.getByUserId(user.userId()).stream()
+    public AccountsResponse listAccounts(@AuthenticationPrincipal AuthenticatedUser user) {
+        return new AccountsResponse(getPlatformAccounts.getByUserId(user.userId()).stream()
                 .map(a -> new AccountResponse(a.platform(), a.externalId(), a.displayName(), a.lastSyncedAt()))
-                .toList();
+                .toList());
+    }
+
+    /** Wrapped in an object like every other list, so fields can be added later without breaking clients. */
+    public record AccountsResponse(List<AccountResponse> accounts) {
     }
 
     /**

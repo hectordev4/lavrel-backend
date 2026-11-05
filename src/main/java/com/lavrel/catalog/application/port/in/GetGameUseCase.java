@@ -1,5 +1,6 @@
 package com.lavrel.catalog.application.port.in;
 
+import com.lavrel.catalog.domain.GameSystem;
 import com.lavrel.catalog.domain.GameNotFoundException;
 import java.time.LocalDate;
 import java.util.List;
@@ -22,7 +23,7 @@ public interface GetGameUseCase {
                        Integer requiredAge, List<String> developers, List<String> publishers,
                        List<String> franchises, List<Tag> tags, List<Genre> genres, Map<String, Boolean> features,
                        int accessibilityFeatureCount, List<FeatureInfo> allFeatures,
-                       List<AgeRatingInfo> ageRatings) {
+                       List<AgeRatingInfo> ageRatings, List<GameSystem> availableOn) {
 
         public record Platforms(boolean windows, boolean mac, boolean linux) {
         }

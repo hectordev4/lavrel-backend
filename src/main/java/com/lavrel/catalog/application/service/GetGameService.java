@@ -3,6 +3,7 @@ package com.lavrel.catalog.application.service;
 import com.lavrel.catalog.application.port.in.GetGameUseCase;
 import com.lavrel.catalog.application.port.out.GameMetadataRepositoryPort;
 import com.lavrel.catalog.application.port.out.GameRepositoryPort;
+import com.lavrel.catalog.application.port.out.GameSystemRepositoryPort;
 import com.lavrel.catalog.domain.Game;
 import com.lavrel.catalog.domain.GameFeature;
 import com.lavrel.catalog.domain.GameMetadata;
@@ -25,10 +26,13 @@ public class GetGameService implements GetGameUseCase {
 
     private final GameRepositoryPort games;
     private final GameMetadataRepositoryPort metadata;
+    private final GameSystemRepositoryPort systems;
 
-    public GetGameService(GameRepositoryPort games, GameMetadataRepositoryPort metadata) {
+    public GetGameService(GameRepositoryPort games, GameMetadataRepositoryPort metadata,
+                          GameSystemRepositoryPort systems) {
         this.games = games;
         this.metadata = metadata;
+        this.systems = systems;
     }
 
     /** A game without details has not been checked against the content policy yet: it stays hidden. */
@@ -61,7 +65,8 @@ public class GetGameService implements GetGameUseCase {
                 details.features().stream()
                         .map(f -> new GameDetails.FeatureInfo(f.id(), f.name(), f.group().name())).toList(),
                 details.ageRatings().stream()
-                        .map(r -> new GameDetails.AgeRatingInfo(r.board(), r.rating(), r.descriptors())).toList());
+                        .map(r -> new GameDetails.AgeRatingInfo(r.board(), r.rating(), r.descriptors())).toList(),
+                systems.findByGame(game.id()).stream().sorted().toList());
     }
 
     private static List<String> names(List<Creator> creators) {

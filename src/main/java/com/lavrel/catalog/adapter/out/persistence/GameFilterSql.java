@@ -28,6 +28,15 @@ public final class GameFilterSql {
                 .formatted(param, TAG_TOP_POSITIONS);
     }
 
+    /** The systems the game is available on, as "PC|XBOX" (select column). */
+    public static final String SYSTEMS_COLUMN =
+            "(SELECT string_agg(gs.system, '|' ORDER BY gs.system) FROM game_system gs WHERE gs.game_id = g.id)";
+
+    /** The game is available on the system bound to {@code :param} (its name, e.g. "XBOX"). */
+    public static String systemCondition(String param) {
+        return "EXISTS (SELECT 1 FROM game_system gs WHERE gs.game_id = g.id AND gs.system = :" + param + ")";
+    }
+
     /** The game offers one of the Steam categories bound to {@code :param} (a player mode). */
     public static String modeCondition(String param) {
         return "EXISTS (SELECT 1 FROM game_feature gf WHERE gf.game_id = g.id AND gf.feature_id IN (:" + param + "))";
