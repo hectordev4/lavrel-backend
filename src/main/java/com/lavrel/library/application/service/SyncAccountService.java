@@ -21,6 +21,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +38,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * without achievements, and remembers what it rejected, so those cost no Steam calls on later syncs. What is
  * left over because of the limit is reported as gamesPending: the user syncs again to continue.
  * When the library was read, the account's lastSyncedAt is updated.
+ *
+ * Two modes: the manual sync reads the unlocks of every owned game; the automatic one (syncChangedGames) only reads
+ * them for games that are new to the account or whose playtime went up since the last sync, because nothing can be
+ * unlocked without playing. That makes it a handful of Steam calls instead of one per game.
  */
 @Service
 public class SyncAccountService implements SyncAccountUseCase {
@@ -75,7 +80,15 @@ public class SyncAccountService implements SyncAccountUseCase {
 
     @Override
     public SyncResult sync(long userId, Platform platform, String externalId) {
-        PlatformAccountView account = accounts.getOwned(userId, platform, externalId);
+        return run(accounts.getOwned(userId, platform, externalId), false);
+    }
+
+    @Override
+    public SyncResult syncChangedGames(long platformAccountId) {
+        return run(accounts.getById(platformAccountId), true);
+    }
+
+    private SyncResult run(PlatformAccountView account, boolean changedOnly) {
         long platformAccountId = account.id();
         PlatformLibraryPort library = libraries.require(account.platform());
 
@@ -93,6 +106,7 @@ public class SyncAccountService implements SyncAccountUseCase {
         Map<String, Long> importedGameIds = outcome.imported();
         int pending = outcome.deferred();
 
+        Map<Long, Integer> previousPlaytime = changedOnly ? previousPlaytime(platformAccountId) : Map.of();
         List<AccountGame> toSave = new ArrayList<>();
         int skipped = 0;
         int unlocksRecorded = 0;
@@ -108,12 +122,27 @@ public class SyncAccountService implements SyncAccountUseCase {
             }
             toSave.add(new AccountGame(platformAccountId, gameId, game.playtimeMinutes(),
                     game.lastPlayedAt(), now));
-            unlocksRecorded += syncUnlocks(library, account, game.platformGameId(), gameId);
+            if (!changedOnly || playedSinceLastSync(previousPlaytime.get(gameId), game.playtimeMinutes())) {
+                unlocksRecorded += syncUnlocks(library, account, game.platformGameId(), gameId);
+            }
         }
 
         tx.executeWithoutResult(status -> accountGames.saveAll(toSave));
         accountMarker.markSynced(platformAccountId);
         return new SyncResult(toSave.size(), skipped, unlocksRecorded, pending);
+    }
+
+    private Map<Long, Integer> previousPlaytime(long platformAccountId) {
+        Map<Long, Integer> playtime = new HashMap<>();
+        for (AccountGame known : accountGames.findByPlatformAccountId(platformAccountId)) {
+            playtime.put(known.gameId(), known.playtimeMinutes());
+        }
+        return playtime;
+    }
+
+    /** New to the account (never read) or played more since: worth asking the platform for its unlocks. */
+    static boolean playedSinceLastSync(Integer previousMinutes, int currentMinutes) {
+        return previousMinutes == null ? currentMinutes > 0 : currentMinutes > previousMinutes;
     }
 
     private int syncUnlocks(PlatformLibraryPort library, PlatformAccountView account,

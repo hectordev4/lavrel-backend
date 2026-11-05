@@ -59,6 +59,7 @@ pages are public and can be shown to people who are not logged in.
 | Build and tests on every push and pull request (GitHub Actions) | Working |
 | Systems a game is available on (PC, Xbox, PlayStation), on game pages and as a search filter | Working |
 | Rate limiting on every endpoint; short browser caching of the public catalog | Working |
+| Automatic library sync (every 6 hours, only games played since the last sync; users can turn it off) | Working |
 | Community (opt-in profiles, player search, comments) | Planned |
 | Xbox and PSN | Planned (the platform layer is ready) |
 
@@ -132,7 +133,7 @@ src/main/java/com/lavrel
 └── devtools/    fake data, one-time e-mail verification
 src/main/resources
 ├── application.yml
-└── db/migration/   V1 … V20
+└── db/migration/   V1 … V21
 ```
 
 ### The Steam import (`catalog/application/service/steam`)
@@ -233,6 +234,10 @@ Spring does not read `.env` by itself: `application.yml` imports it with
 | `app.rate-limit.anonymous-total-per-minute` | `600` | Requests per minute for all anonymous callers together |
 | `app.rate-limit.user-per-minute` | `120` | Requests per minute for one signed-in user (admins are not limited) |
 | `app.rate-limit.syncs-per-hour` | `20` | Account syncs per hour for one user |
+| `app.auto-sync.enabled` | `true` | `false` turns the automatic sync off for everyone |
+| `app.auto-sync.every` | `PT6H` | An account is synced automatically at most this often |
+| `app.auto-sync.check-every` / `first-run-after` | `PT30M` / `PT10M` | How often the scheduler looks for accounts to sync, and the wait after start-up |
+| `app.auto-sync.active-days` / `batch-size` / `pause-ms` | `30` / `20` / `1000` | Only users seen in this many days; accounts per round; pause between accounts |
 | `app.dev.verify-email-uids` | not set | Development only: enables the one-time e-mail verification for these Firebase UIDs. Remove after use |
 
 ## Database
@@ -271,6 +276,7 @@ Flyway is the only source of schema changes. Never edit a migration that has bee
 | V18 | Longer achievement texts (names and Steam ids up to 1024 characters, descriptions up to 8000) |
 | V19 | The full country list (ISO 3166-1), except countries under US sanctions where Steam is not offered and uninhabited territories |
 | V20 | `game_system` (PC, Xbox, PlayStation), with PC filled for every Steam game |
+| V21 | `users.last_seen_at`, `users.auto_sync` (automatic library sync) |
 
 There is no V8 on purpose (it was superseded by V9 before release). Flyway does not need consecutive numbers.
 Check what is applied with:
@@ -382,6 +388,16 @@ someone else's account answers `404` like a missing one.
 - Rejected games are remembered for `failure-retry-days`, so they cost no Steam calls on later syncs.
 - Unlocks are recorded once per user and achievement. `lastSyncedAt` is shown in `GET /api/currentuser/accounts`.
 - The sync runs inside the request (it can take a while for a big library).
+
+### Automatic sync
+
+Every 30 minutes a scheduler takes up to 20 accounts that were last synced more than 6 hours ago, from users who used
+the app in the last 30 days and kept **automatic sync** on (`GET` / `PUT /api/currentuser/auto-sync`, on by default).
+It reads the library, imports new games, and reads unlocks **only for games played since the last sync**, so an
+account costs a handful of Steam calls instead of one per game. A private profile or an odd game marks the account
+as synced and moves on; if Steam fails or rate-limits, the round stops and the rest waits for the next one. The
+manual sync stays a full sync. On Render's free plan the scheduler only runs while the app is awake, which is what the
+keep-awake monitor is for.
 
 ## The catalog and the content policy
 
@@ -541,6 +557,7 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 |---|---|---|
 | PATCH | `/api/currentuser/username` | `{"username": "Héctor K."}`. `204` |
 | PATCH | `/api/currentuser/country` | `{"countryId": 12}`; `null` clears it. `204` |
+| GET / PUT | `/api/currentuser/auto-sync` | `{"enabled": false}`: automatic sync of my accounts (on by default) |
 | GET | `/api/countries` | `{"countries": [...]}`: about 240 countries |
 | GET | `/api/currentuser/accounts` | `{"accounts": [...]}`: `platform`, `externalId`, `displayName`, `lastSyncedAt` |
 | POST | `/api/currentuser/accounts/{platform}/link` | Returns the platform login URL |
@@ -647,6 +664,7 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 54, 55 | Achievement list of a game, without and with a token |
 | 56, 57 | Firebase: send me the verification e-mail; send me a password-reset e-mail |
 | 61 – 63 | Admin: mark a game as on PlayStation; search by system; unmark it |
+| 64, 65 | Automatic sync: read the setting, turn it off or on |
 | 58 – 60 | Unlink my account; delete my account without confirm (safety check); **delete my account for good** (test accounts only) |
 
 **Collection Runner recipe** (17, 19, 20): Run collection → select **only that request** → Iterations 20 → Delay 3000–5000 ms.
@@ -684,7 +702,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `Could not resolve placeholder 'X'` at start | Variable missing from `.env`, or the app was not started from the project root |
 | Flyway: `canceling statement due to statement timeout` | A migration tried to alter `flyway_schema_history` while Flyway holds it. Do that by hand, after the first start |
 | Flyway: `Found non-empty schema(s) "public" but no schema history table` | Tables exist from a manual run. Drop them and let Flyway create them |
-| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V20 must be there) |
+| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V21 must be there) |
 | V16 fails (`permission denied` or `function unaccent does not exist`) | Enable `pg_trgm` and `unaccent` in Supabase (Database → Extensions) and restart |
 | `401` with a token that looks valid | The token and the service-account key belong to different Firebase projects. The server log gives the reason |
 | `403 email_not_verified` | The e-mail is not verified, or the token is older than the verification: refresh it (`getIdToken(true)`, or Postman request 1) |
@@ -704,8 +722,7 @@ Next, in this order:
 1. **Xbox and PSN**: their library, catalog and identity adapters, plus an admin "compare achievements" endpoint that
    fills `achievement_mapping`.
 2. **Community**: opt-in public profiles and player search (by public id and display name). Comments come later.
-3. **Automatic library sync**: a scheduled sync that only reads the unlocks of games whose playtime changed.
-4. **AI chat** that helps players find how to obtain achievements.
+3. **AI chat** that helps players find how to obtain achievements.
 
 Known gaps: no automated tests for persistence or the HTTP layer; Steam's "most played" chart and store-browse endpoints
 are public but not documented by Valve and could change.
@@ -740,6 +757,7 @@ are public but not documented by Valve and could change.
 
 ## Changelog
 
+- **feat/auto-sync**: automatic library sync of games played since the last sync (V21); auto-sync setting.
 - **feat/protection**: rate limiting (429 with Retry-After), short browser caching of the public catalog.
 - **feat/systems**: systems a game is available on (V20), full country list (V19), linked accounts list wrapped in an object.
 - **feat/account-control**: unlink a platform account, delete my account (GDPR), CI on GitHub Actions.

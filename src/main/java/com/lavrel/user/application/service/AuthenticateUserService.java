@@ -2,6 +2,7 @@ package com.lavrel.user.application.service;
 
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase;
 import com.lavrel.user.application.port.out.TokenVerifierPort;
+import com.lavrel.user.application.port.out.UserActivityPort;
 import com.lavrel.user.application.port.out.TokenVerifierPort.VerifiedToken;
 import com.lavrel.user.application.port.out.UserRepositoryPort;
 import com.lavrel.user.domain.User;
@@ -16,14 +17,17 @@ public class AuthenticateUserService implements AuthenticateUserUseCase {
     private final UserRepositoryPort users;
     private final PublicIdAllocator publicIds;
     private final UsernameGenerator usernames;
+    private final UserActivityPort activity;
     private final Clock clock;
 
     public AuthenticateUserService(TokenVerifierPort tokenVerifier, UserRepositoryPort users,
-                                   PublicIdAllocator publicIds, UsernameGenerator usernames, Clock clock) {
+                                   PublicIdAllocator publicIds, UsernameGenerator usernames,
+                                   UserActivityPort activity, Clock clock) {
         this.tokenVerifier = tokenVerifier;
         this.users = users;
         this.publicIds = publicIds;
         this.usernames = usernames;
+        this.activity = activity;
         this.clock = clock;
     }
 
@@ -34,6 +38,7 @@ public class AuthenticateUserService implements AuthenticateUserUseCase {
         User user = users.findByFirebaseUid(token.uid())
                 .map(existing -> refreshProfile(existing, token))
                 .orElseGet(() -> create(token));
+        activity.recordSeen(user.id(), clock.instant());
         return new AuthenticatedUser(user.id(), user.firebaseUid(), user.role(), token.emailVerified());
     }
 

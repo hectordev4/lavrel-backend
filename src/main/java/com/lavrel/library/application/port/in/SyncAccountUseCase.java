@@ -19,6 +19,14 @@ public interface SyncAccountUseCase {
     SyncResult sync(long userId, Platform platform, String externalId);
 
     /**
+     * The automatic sync of one account: reads the library, imports new games, and reads unlocks only for games
+     * that are new to the account or were played since the last sync. Not exposed over HTTP.
+     *
+     * @throws ProfilePrivateException if the platform profile is private
+     */
+    SyncResult syncChangedGames(long platformAccountId);
+
+    /**
      * gamesSynced: games of the library now owned in our database. gamesSkipped: library games left out (adult,
      * no achievements, or waiting). gamesPending: games still waiting to be imported because of the per-sync limit.
      */
