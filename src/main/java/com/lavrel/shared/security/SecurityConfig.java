@@ -1,6 +1,11 @@
 package com.lavrel.shared.security;
 
+import com.lavrel.shared.error.ErrorResponseWriter;
+import com.lavrel.shared.web.RateLimitFilter;
+import com.lavrel.shared.web.RateLimiter;
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -13,6 +18,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -26,8 +32,21 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    AuthenticateUserUseCase authenticateUser,
                                                    JsonAuthenticationEntryPoint entryPoint,
-                                                   JsonAccessDeniedHandler accessDeniedHandler)
+                                                   JsonAccessDeniedHandler accessDeniedHandler,
+                                                   ErrorResponseWriter errorWriter, Clock clock,
+                                                   @Value("${app.rate-limit.anonymous-per-minute:60}") int anonymousPerMinute,
+                                                   @Value("${app.rate-limit.anonymous-total-per-minute:600}") int anonymousTotal,
+                                                   @Value("${app.rate-limit.user-per-minute:120}") int userPerMinute,
+                                                   @Value("${app.rate-limit.syncs-per-hour:20}") int syncsPerHour)
             throws Exception {
+        // Not a bean on purpose: it must only run inside this chain, never as a plain servlet filter as well.
+        RateLimitFilter rateLimitFilter = new RateLimitFilter(
+                new RateLimiter(anonymousPerMinute, Duration.ofMinutes(1), clock),
+                new RateLimiter(anonymousTotal, Duration.ofMinutes(1), clock),
+                new RateLimiter(userPerMinute, Duration.ofMinutes(1), clock),
+                new RateLimiter(syncsPerHour, Duration.ofHours(1), clock),
+                errorWriter);
+
 
         http
                 // Stateless token API: no cookies, no sessions, so CSRF protection does not apply.
@@ -52,7 +71,9 @@ public class SecurityConfig {
                         .anyRequest().hasAuthority(FirebaseAuthenticationFilter.EMAIL_VERIFIED))
                 .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint).accessDeniedHandler(accessDeniedHandler))
                 .addFilterBefore(new FirebaseAuthenticationFilter(authenticateUser, entryPoint),
-                        UsernamePasswordAuthenticationFilter.class);
+                        UsernamePasswordAuthenticationFilter.class)
+                // After authentication (it needs to know who calls), before authorization.
+                .addFilterBefore(rateLimitFilter, AuthorizationFilter.class);
         return http.build();
     }
 
@@ -65,6 +86,8 @@ public class SecurityConfig {
         config.setAllowedOrigins(allowedOrigins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // The frontend can read how long to wait after a 429 too_many_requests.
+        config.setExposedHeaders(List.of("Retry-After"));
         config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
