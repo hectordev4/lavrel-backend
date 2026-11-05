@@ -3,6 +3,8 @@ package com.lavrel.profile.adapter.in.web;
 import com.lavrel.profile.application.port.in.ViewProfilesUseCase;
 import com.lavrel.profile.application.port.in.ViewProfilesUseCase.Country;
 import com.lavrel.profile.application.port.in.ViewProfilesUseCase.ProfileHeader;
+import com.lavrel.profile.application.port.in.ViewProfilesUseCase.PublicProfile;
+import com.lavrel.profile.application.port.in.ViewProfilesUseCase.ShelfContent;
 import com.lavrel.shared.domain.Platform;
 import com.lavrel.user.domain.PublicIds;
 import jakarta.validation.constraints.Max;
@@ -18,7 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Public, no login needed. Only profiles their owner made public:
- *  - GET /api/users/{publicId}   the profile (404 profile_not_found for private or unknown ones, not told apart)
+ *  - GET /api/users/{publicId}   the profile with its shelves (404 profile_not_found for private or unknown ones,
+ *                                not told apart)
  *  - GET /api/users?q=           player search by name (2+ characters) or an exact 16-digit public id
  */
 @RestController
@@ -31,8 +34,10 @@ public class PublicProfileController {
     }
 
     @GetMapping("/api/users/{publicId}")
-    public ProfileResponse profile(@PathVariable("publicId") @Min(PublicIds.MIN) @Max(PublicIds.MAX) long publicId) {
-        return ProfileResponse.from(profiles.header(publicId));
+    public PublicProfileResponse profile(
+            @PathVariable("publicId") @Min(PublicIds.MIN) @Max(PublicIds.MAX) long publicId) {
+        PublicProfile profile = profiles.profile(publicId);
+        return new PublicProfileResponse(ProfileResponse.from(profile.header()), profile.shelves());
     }
 
     @GetMapping("/api/users")
@@ -42,6 +47,10 @@ public class PublicProfileController {
     }
 
     public record PlayersResponse(List<ProfileResponse> players, int page) {
+    }
+
+    /** The header and the shelves the user built, in their order, already filled. */
+    public record PublicProfileResponse(ProfileResponse profile, List<ShelfContent> shelves) {
     }
 
     /** country and platforms only when the user opted in; platforms are badges, never account names or ids. */
