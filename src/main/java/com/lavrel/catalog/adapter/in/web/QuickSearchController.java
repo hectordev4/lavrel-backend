@@ -1,17 +1,19 @@
 package com.lavrel.catalog.adapter.in.web;
 
 import com.lavrel.catalog.adapter.in.web.GameSearchController.GameCardResponse;
-import com.lavrel.catalog.application.port.in.BrowseFiltersUseCase;
 import com.lavrel.catalog.application.port.in.BrowseFiltersUseCase.CreatorOption;
 import com.lavrel.catalog.application.port.in.BrowseFiltersUseCase.CreatorRole;
 import com.lavrel.catalog.application.port.in.BrowseFiltersUseCase.TagOption;
-import com.lavrel.catalog.application.port.in.QuickSearchUseCase;
+import com.lavrel.catalog.application.port.in.BrowseFiltersUseCase;
 import com.lavrel.catalog.application.port.in.QuickSearchUseCase.QuickResults;
+import com.lavrel.catalog.application.port.in.QuickSearchUseCase;
+import com.lavrel.shared.web.PublicCache;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.Locale;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,24 +36,27 @@ public class QuickSearchController {
     }
 
     @GetMapping("/api/search")
-    public QuickSearchResponse search(@RequestParam("q") @NotNull @Size(min = 2, max = 100) String q) {
+    public ResponseEntity<QuickSearchResponse> search(@RequestParam("q") @NotNull @Size(min = 2, max = 100) String q) {
         QuickResults r = quickSearch.search(q);
-        return new QuickSearchResponse(r.games().stream().map(GameCardResponse::from).toList(),
+        return ResponseEntity.ok().cacheControl(PublicCache.SEARCH).body(new QuickSearchResponse(
+                r.games().stream().map(GameCardResponse::from).toList(),
                 r.tags().stream().map(TagResponse::from).toList(),
-                r.franchises().stream().map(CreatorResponse::from).toList());
+                r.franchises().stream().map(CreatorResponse::from).toList()));
     }
 
     @GetMapping("/api/tags")
-    public TagsResponse tags(@RequestParam(name = "q", required = false) @Size(max = 100) String q) {
-        return new TagsResponse(filters.tags(q).stream().map(TagResponse::from).toList());
+    public ResponseEntity<TagsResponse> tags(@RequestParam(name = "q", required = false) @Size(max = 100) String q) {
+        return ResponseEntity.ok().cacheControl(PublicCache.FILTER_OPTIONS)
+                .body(new TagsResponse(filters.tags(q).stream().map(TagResponse::from).toList()));
     }
 
     @GetMapping("/api/creators")
-    public CreatorsResponse creators(
+    public ResponseEntity<CreatorsResponse> creators(
             @RequestParam("role") @Pattern(regexp = "(?i)franchise|developer|publisher") String role,
             @RequestParam(name = "q", required = false) @Size(max = 100) String q) {
-        return new CreatorsResponse(filters.creators(CreatorRole.valueOf(role.toUpperCase(Locale.ROOT)), q).stream()
-                .map(CreatorResponse::from).toList());
+        return ResponseEntity.ok().cacheControl(PublicCache.FILTER_OPTIONS).body(new CreatorsResponse(
+                filters.creators(CreatorRole.valueOf(role.toUpperCase(Locale.ROOT)), q).stream()
+                        .map(CreatorResponse::from).toList()));
     }
 
     public record QuickSearchResponse(List<GameCardResponse> games, List<TagResponse> tags,

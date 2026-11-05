@@ -1,7 +1,9 @@
 package com.lavrel.catalog.adapter.in.web;
 
 import com.lavrel.catalog.application.port.in.GetGameUseCase;
+import com.lavrel.shared.web.PublicCache;
 import jakarta.validation.constraints.Positive;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,7 +25,7 @@ public class GameController {
     }
 
     @GetMapping("/{gameId}")
-    public GameResponse getGame(@PathVariable("gameId") @Positive long gameId) {
-        return GameResponse.from(getGame.getGame(gameId));
+    public ResponseEntity<GameResponse> getGame(@PathVariable("gameId") @Positive long gameId) {
+        return ResponseEntity.ok().cacheControl(PublicCache.GAME).body(GameResponse.from(getGame.getGame(gameId)));
     }
 }
