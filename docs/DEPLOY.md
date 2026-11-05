@@ -63,8 +63,13 @@ Flyway applies new migrations when the app starts, so a deploy with a new `V…s
 
 - The service **sleeps after 15 minutes without requests**; the next request waits while it starts again (up to a
   minute or two for Spring Boot on the free CPU).
-- To keep it awake, an external monitor (e.g. UptimeRobot) can call `/actuator/health` every 10 minutes. One service
-  running all month uses about 720–745 of the 750 free hours, so do this for one service only.
+- To keep it awake, an external monitor calls the health check every 10 minutes. One service running all month uses
+  about 720–745 of the 750 free hours, so do this for one service only. With **UptimeRobot** (free):
+  1. Sign up at uptimerobot.com → **New monitor**.
+  2. Type **HTTP(s)**, URL `https://lavrel.onrender.com/actuator/health`, interval **10 minutes** (or 5, the free
+     minimum, if the first visit still finds it asleep).
+  3. Optionally add your e-mail as alert contact: it then also tells you when the backend is down.
+  The health check is not rate limited, so the monitor never gets a 429.
 
 ## Troubleshooting
 

@@ -1,11 +1,14 @@
 package com.lavrel.progress.adapter.in.web;
 
-import com.lavrel.progress.application.port.in.GetGameAchievementsUseCase;
 import com.lavrel.progress.application.port.in.GetGameAchievementsUseCase.AchievementItem;
+import com.lavrel.progress.application.port.in.GetGameAchievementsUseCase;
+import com.lavrel.shared.web.PublicCache;
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase.AuthenticatedUser;
 import jakarta.validation.constraints.Positive;
 import java.time.Instant;
 import java.util.List;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,12 +28,17 @@ public class GameAchievementsController {
     }
 
     @GetMapping("/api/games/{gameId}/achievements")
-    public AchievementsResponse list(@AuthenticationPrincipal AuthenticatedUser user,
+    public ResponseEntity<AchievementsResponse> list(@AuthenticationPrincipal AuthenticatedUser user,
                                      @PathVariable("gameId") @Positive long gameId) {
         List<AchievementItem> items = achievements.list(gameId, user == null ? null : user.userId());
         int unlocked = (int) items.stream().filter(a -> a.unlockedAt() != null).count();
-        return new AchievementsResponse(gameId, items.size(), user == null ? null : unlocked,
+        AchievementsResponse body = new AchievementsResponse(gameId, items.size(), user == null ? null : unlocked,
                 items.stream().map(AchievementResponse::from).toList());
+        // Anonymous answers are the same for everybody; signed-in ones carry the caller's own unlocks.
+        return ResponseEntity.ok()
+                .cacheControl(user == null ? PublicCache.GAME : PublicCache.PRIVATE)
+                .varyBy(HttpHeaders.AUTHORIZATION)
+                .body(body);
     }
 
     /** unlocked is null for anonymous visitors. */

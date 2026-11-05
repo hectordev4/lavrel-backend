@@ -58,7 +58,7 @@ pages are public and can be shown to people who are not logged in.
 | Unlink a platform account; delete my account (Firebase sign-in included) | Working |
 | Build and tests on every push and pull request (GitHub Actions) | Working |
 | Systems a game is available on (PC, Xbox, PlayStation), on game pages and as a search filter | Working |
-| Rate limiting and caching on public endpoints | Planned |
+| Rate limiting on every endpoint; short browser caching of the public catalog | Working |
 | Community (opt-in profiles, player search, comments) | Planned |
 | Xbox and PSN | Planned (the platform layer is ready) |
 
@@ -229,6 +229,10 @@ Spring does not read `.env` by itself: `application.yml` imports it with
 | `app.catalog.filter.*` | see `CatalogFilterProperties` | Descriptor ids, sexual tag ids, top-5 share, excluded tags; defaults below |
 | `app.link.state-secret` / `app.link.state-ttl` | `app.steam.*` / `PT10M` | Account-link `state`; the old `app.steam.*` keys still work |
 | `app.cors.allowed-origins` | `http://localhost:3000,http://localhost:5173` | Browser origins allowed to call the API. **Add `http://localhost:4200` for the Angular dev server** |
+| `app.rate-limit.anonymous-per-minute` | `60` | Requests per minute for one anonymous caller (by address) |
+| `app.rate-limit.anonymous-total-per-minute` | `600` | Requests per minute for all anonymous callers together |
+| `app.rate-limit.user-per-minute` | `120` | Requests per minute for one signed-in user (admins are not limited) |
+| `app.rate-limit.syncs-per-hour` | `20` | Account syncs per hour for one user |
 | `app.dev.verify-email-uids` | not set | Development only: enables the one-time e-mail verification for these Firebase UIDs. Remove after use |
 
 ## Database
@@ -475,6 +479,26 @@ catalog game can be tracked, owned or not (games from a sync are in the catalog)
 - **Quick access**: up to **20** pinned games, in the user's own order (positions 1..n, no gaps). The 21st answers
   `409 quick_access_full`. Removing a game from the list also unpins it.
 
+## Rate limiting and caching
+
+The API runs on free plans (Render, Supabase), so every request goes through a rate limiter (`RateLimitFilter`, after
+authentication):
+
+| Caller | Limit (defaults, `app.rate-limit.*`) |
+|---|---|
+| Anonymous, per address | 60 requests per minute |
+| All anonymous callers together | 600 per minute (faking addresses cannot get around it) |
+| Signed-in user | 120 per minute |
+| Account syncs | 20 per hour per user (they call Steam a lot; enough to import a big library in steps) |
+| Admins, health check | Not limited |
+
+Over the limit the answer is `429 too_many_requests` with `Retry-After` (seconds); the frontend can read that header.
+The buckets live in memory: there is one instance, and a restart only forgets who was close to the limit.
+
+Public catalog answers carry `Cache-Control`, so browsers reuse them: game pages and anonymous achievement lists for
+5 minutes, search and the type-ahead for 1 minute, tag and creator options for 10 minutes. Anything with the caller's
+own data is never cached.
+
 ## My library and collections
 
 **My library** (`GET /api/currentuser/games`) is every game the user owns in any linked account, as long as it is
@@ -591,6 +615,7 @@ Every error is `{"error": "<code>", "message": "<text>"}`. Validation errors add
 | 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `collection_not_found`, `not_found` |
 | 409 | `account_already_linked`, `already_verified`, `quick_access_full`, `collection_name_taken`, `collection_limit_reached`, `last_admin` |
 | 422 | `profile_private`, `platform_not_supported`, `game_not_owned` |
+| 429 | `too_many_requests` (with a `Retry-After` header, in seconds) |
 | 502 | `platform_unavailable`, `identity_provider_unavailable` |
 
 ## Postman collection
@@ -676,12 +701,11 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 
 Next, in this order:
 
-1. **Protect the public endpoints**: rate limiting and short caching on search and game pages.
-2. **Xbox and PSN**: their library, catalog and identity adapters, plus an admin "compare achievements" endpoint that
+1. **Xbox and PSN**: their library, catalog and identity adapters, plus an admin "compare achievements" endpoint that
    fills `achievement_mapping`.
-3. **Community**: opt-in public profiles and player search (by public id and display name). Comments come later.
-4. **Automatic library sync**: a scheduled sync that only reads the unlocks of games whose playtime changed.
-5. **AI chat** that helps players find how to obtain achievements.
+2. **Community**: opt-in public profiles and player search (by public id and display name). Comments come later.
+3. **Automatic library sync**: a scheduled sync that only reads the unlocks of games whose playtime changed.
+4. **AI chat** that helps players find how to obtain achievements.
 
 Known gaps: no automated tests for persistence or the HTTP layer; Steam's "most played" chart and store-browse endpoints
 are public but not documented by Valve and could change.
@@ -710,11 +734,13 @@ are public but not documented by Valve and could change.
 | Tracking list filled only by the user; quick access capped at 20; default order by store release date | Agreed |
 | Collections hold only games the user owns (any game can still be tracked or pinned); library sorted by last played | Agreed |
 | Users can unlink accounts and delete their account (data and Firebase sign-in); the only admin cannot | GDPR right to erasure; nobody gets locked out |
+| In-memory rate limiting, no external service | One instance on a free plan; nothing extra to run or pay for |
 | Player search on a separate community page, only **opted-in** profiles | Privacy |
 | Readable game URLs: `/games/{id}-{slug}` | Shareable, search-engine friendly; the id decides |
 
 ## Changelog
 
+- **feat/protection**: rate limiting (429 with Retry-After), short browser caching of the public catalog.
 - **feat/systems**: systems a game is available on (V20), full country list (V19), linked accounts list wrapped in an object.
 - **feat/account-control**: unlink a platform account, delete my account (GDPR), CI on GitHub Actions.
 - **feat/library**: my library (owned games with progress), collections of owned games (V17), achievement list per game.
