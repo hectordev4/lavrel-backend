@@ -37,6 +37,11 @@ locally.
 `JAVA_TOOL_OPTIONS` replaces the default baked into the image: it keeps Java inside the free instance's 512 MB and
 makes startup lighter on its small CPU. Never set `FAKE_DATA_ENABLED` or `app.dev.verify-email-uids` here.
 
+**Avatar uploads (optional):** in Supabase, Storage → **New bucket** `avatars`, marked **Public**. Then add two
+environment variables in Render: `SUPABASE_URL` (Project Settings → API → Project URL) and `SUPABASE_SERVICE_KEY`
+(the `service_role` key on the same page; a secret, never put it in the frontend). Without them everything works except
+uploads, which answer `503 avatar_storage_unavailable`.
+
 **Secret file:** Environment → Secret Files → `firebase-service-account.json`, with the whole content of the local
 `secrets/firebase-service-account.json`. Render places it at `/etc/secrets/firebase-service-account.json`.
 

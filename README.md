@@ -60,7 +60,8 @@ pages are public and can be shown to people who are not logged in.
 | Systems a game is available on (PC, Xbox, PlayStation), on game pages and as a search filter | Working |
 | Rate limiting on every endpoint; short browser caching of the public catalog | Working |
 | Automatic library sync (every 6 hours, only games played since the last sync; users can turn it off) | Working |
-| Community (opt-in profiles, player search, comments) | Planned |
+| Public profiles (opt-in) with customizable shelves, player search, avatars (generated, gallery, upload) | Working |
+| Comments between players | Planned |
 | Xbox and PSN | Planned (the platform layer is ready) |
 
 ## Tech stack
@@ -98,6 +99,7 @@ feature/
 | `library` | The games a user owns and the sync of an account |
 | `progress` | Unlocks and statistics |
 | `tracking` | The tracking list (statuses, progress cards) and quick access |
+| `profile` | Public profiles (opt-in), shelves, player search and avatars |
 | `platform.adapter.out.steam` | Steam clients only (`SteamLibraryClient`, `SteamCatalogClient`, `SteamOpenIdVerifier`). No business logic |
 | `shared` | `Platform`, `PlatformRegistry`, error format, security configuration, `Clock`, Firebase setup |
 | `devtools` | Development-only tools: fake data and the one-time e-mail verification |
@@ -133,7 +135,7 @@ src/main/java/com/lavrel
 └── devtools/    fake data, one-time e-mail verification
 src/main/resources
 ├── application.yml
-└── db/migration/   V1 … V21
+└── db/migration/   V1 … V24
 ```
 
 ### The Steam import (`catalog/application/service/steam`)
@@ -209,6 +211,8 @@ and costs: [docs/DEPLOY.md](docs/DEPLOY.md). Locally, keep using `mvn spring-boo
 | `STEAM_STATE_SECRET` | yes | At least 32 characters; signs the account-link `state` |
 | `STEAM_CALLBACK_URL` | no | Default `http://localhost:8080/api/steam/callback` (`/api/platforms/steam/callback` works too) |
 | `FRONTEND_BASE_URL` | no | Empty: the link callback answers JSON. Set: it redirects to `{url}/{platform}/linked` |
+| `SUPABASE_URL` | no | `https://<project>.supabase.co`, for avatar uploads (Supabase Storage). Without it uploads answer `503` |
+| `SUPABASE_SERVICE_KEY` | no | Supabase **service-role** key, for avatar uploads. A secret: backend environment only |
 | `FAKE_DATA_ENABLED` | no | `true` enables the fake-data endpoints (development only) |
 | `CORS_ALLOWED_ORIGINS` | no | Browser origins allowed to call the API, comma-separated. Default `http://localhost:4200` |
 | `PORT` | no | HTTP port; set by Cloud Run. Default `8080` |
@@ -277,6 +281,9 @@ Flyway is the only source of schema changes. Never edit a migration that has bee
 | V19 | The full country list (ISO 3166-1), except countries under US sanctions where Steam is not offered and uninhabited territories |
 | V20 | `game_system` (PC, Xbox, PlayStation), with PC filled for every Steam game |
 | V21 | `users.last_seen_at`, `users.auto_sync` (automatic library sync) |
+| V22 | `profile_settings` (public profile and what it shows; everything private by default) |
+| V23 | `profile_shelf`, `profile_shelf_achievement` (profile shelves) |
+| V24 | Avatar kind and value on `profile_settings` |
 
 There is no V8 on purpose (it was superseded by V9 before release). Flyway does not need consecutive numbers.
 Check what is applied with:
@@ -333,7 +340,7 @@ reach the backend. There is no login by username.
 
 | Caller | Can call |
 |---|---|
-| Anyone, no token | `GET /actuator/health`, the link callbacks, and the public catalog: `GET /api/games`, `/api/games/{id}`, `/api/games/{id}/achievements`, `/api/search`, `/api/tags`, `/api/creators` |
+| Anyone, no token | `GET /actuator/health`, the link callbacks, and the public catalog: `GET /api/games`, `/api/games/{id}`, `/api/games/{id}/achievements`, `/api/search`, `/api/tags`, `/api/creators`, public profiles (`/api/users`), `/api/avatars/gallery` |
 | Signed in, e-mail **not** verified | Only `GET /api/currentuser` (it returns `emailVerified: false`, so the frontend shows "check your inbox") and `DELETE /api/currentuser`. Everything else is `403 email_not_verified` |
 | Signed in and verified | Everything for users |
 | Role `ADMIN` (and verified) | `/api/admin/**` |
@@ -457,6 +464,7 @@ a request for each, with a Collection Runner recipe for the long ones.
 | `DELETE /api/admin/catalog/steam/exceptions/{appId}` | Removes an exception; the next refresh judges the game again |
 | `PATCH /api/admin/users/{publicId}/role` | `{"role": "SUPPORT"}`: `USER`, `SUPPORT` or `ADMIN` |
 | `PUT` / `DELETE /api/admin/catalog/games/{gameId}/systems/{system}` | Mark or unmark a game as available on `pc`, `xbox` or `playstation` |
+| `DELETE /api/admin/users/{publicId}/avatar` | Remove someone's picture (moderation) |
 
 Limits are validated: `limit` 1–200, app ids numeric, at most 500 per request.
 
@@ -494,6 +502,43 @@ catalog game can be tracked, owned or not (games from a sync are in the catalog)
 - Default order: **newest store release first** (games without a date last); `sort=title` and `sort=updated` too.
 - **Quick access**: up to **20** pinned games, in the user's own order (positions 1..n, no gaps). The 21st answers
   `409 quick_access_full`. Removing a game from the list also unpins it.
+
+## Public profiles
+
+**Nothing is public unless the user turns it on.** A profile that is not public answers `404 profile_not_found` (the
+same as a user that does not exist) and never appears in the player search.
+
+- **Header:** username, public id and the month the user joined. Each of these is a separate opt-in, off by default:
+  country, **platform badges** (only "plays on Steam / Xbox / PSN", never account names or ids) and the **picture**.
+- **Shelves:** everything else is a shelf the user adds, titles, orders and removes (up to 10). Whatever is not on a
+  shelf is never shown.
+
+| Shelf | Shows |
+|---|---|
+| `COLLECTION` | One of the user's collections (putting it on a shelf is what makes it public) |
+| `RECENTLY_PLAYED` | The last 6 games played |
+| `PLAYING` | Tracked games marked `PLAYING` |
+| `COMPLETED` | Games with every achievement unlocked |
+| `ACHIEVEMENTS` | Up to 12 achievements the user picked from their own unlocks, with rarity |
+| `STATS` | Games owned, achievements unlocked, games completed (the only place the number of games owned appears) |
+
+- **Player search:** `GET /api/users?q=` by name (2+ characters, accent and case insensitive) or an exact public id.
+
+### Avatars
+
+Every user has one avatar of one kind:
+
+| Kind | What | Stored |
+|---|---|---|
+| `GENERATED` (default) | Drawn by the frontend with DiceBear from the public id | Nothing |
+| `GALLERY` | One of 36 default pictures (`gallery-01` … `gallery-36`); the images are CC0 art in the frontend | The id |
+| `UPLOADED` | The user's own JPG, PNG or GIF | Supabase Storage, bucket `avatars` |
+
+Uploads are sent as the request body (not a form), at most 2 MB. The type is read from the file's content, never its
+name. JPG and PNG are cropped to a square, resized to 256×256 and re-encoded, which also removes hidden photo data
+such as the GPS location; PNG keeps its transparency. GIFs are kept exactly as uploaded, animation and transparency
+included, if they are at most 1 MB, 512×512 and 300 frames. Others only see the picture if `showAvatar` is on;
+otherwise they see the generated one. Admins can remove a picture (`DELETE /api/admin/users/{publicId}/avatar`).
 
 ## Rate limiting and caching
 
@@ -543,6 +588,9 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 | GET | `/api/search?q=` | Type-ahead |
 | GET | `/api/tags?q=` | Tag options |
 | GET | `/api/creators?role=&q=` | Franchise, developer or publisher options |
+| GET | `/api/users/{publicId}` | A public profile with its shelves |
+| GET | `/api/users?q=` | Player search (public profiles only) |
+| GET | `/api/avatars/gallery` | The gallery picture ids |
 
 ### Signed in (any e-mail state)
 
@@ -558,6 +606,13 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 | PATCH | `/api/currentuser/username` | `{"username": "Héctor K."}`. `204` |
 | PATCH | `/api/currentuser/country` | `{"countryId": 12}`; `null` clears it. `204` |
 | GET / PUT | `/api/currentuser/auto-sync` | `{"enabled": false}`: automatic sync of my accounts (on by default) |
+| GET / PATCH | `/api/currentuser/profile` | Profile settings: `public`, `showCountry`, `showPlatforms`, `showAvatar` (all off by default) |
+| GET / POST | `/api/currentuser/profile/shelves` | My shelves; add one `{"type", "title"?, "collectionId"?}` |
+| PATCH / DELETE | `/api/currentuser/profile/shelves/{id}` | New title / remove |
+| PUT | `/api/currentuser/profile/shelves` | `{"shelfIds": [...]}`: new order |
+| PUT | `/api/currentuser/profile/shelves/{id}/achievements` | `{"achievementIds": [...]}`: up to 12 of my unlocks |
+| GET / PUT / DELETE | `/api/currentuser/profile/avatar` | My avatar / upload a picture (raw image body) / back to generated |
+| PUT | `/api/currentuser/profile/avatar/gallery` | `{"galleryId": "gallery-07"}` |
 | GET | `/api/countries` | `{"countries": [...]}`: about 240 countries |
 | GET | `/api/currentuser/accounts` | `{"accounts": [...]}`: `platform`, `externalId`, `displayName`, `lastSyncedAt` |
 | POST | `/api/currentuser/accounts/{platform}/link` | Returns the platform login URL |
@@ -626,14 +681,15 @@ Every error is `{"error": "<code>", "message": "<text>"}`. Validation errors add
 
 | Status | Codes |
 |---|---|
-| 400 | `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `country_not_found`, `invalid_identity_proof`, `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order`, `invalid_collection_name`, `invalid_collection_order` |
+| 400 | `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `country_not_found`, `invalid_identity_proof`, `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order`, `invalid_collection_name`, `invalid_collection_order`, `invalid_shelf`, `invalid_avatar` |
 | 401 | `unauthorized` (missing or invalid token) |
 | 403 | `email_not_verified`, `forbidden` |
-| 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `collection_not_found`, `not_found` |
-| 409 | `account_already_linked`, `already_verified`, `quick_access_full`, `collection_name_taken`, `collection_limit_reached`, `last_admin` |
+| 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `collection_not_found`, `profile_not_found`, `shelf_not_found`, `not_found` |
+| 409 | `account_already_linked`, `already_verified`, `quick_access_full`, `collection_name_taken`, `collection_limit_reached`, `last_admin`, `shelf_limit_reached` |
 | 422 | `profile_private`, `platform_not_supported`, `game_not_owned` |
 | 429 | `too_many_requests` (with a `Retry-After` header, in seconds) |
 | 502 | `platform_unavailable`, `identity_provider_unavailable` |
+| 503 | `avatar_storage_unavailable` |
 
 ## Postman collection
 
@@ -665,6 +721,7 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 56, 57 | Firebase: send me the verification e-mail; send me a password-reset e-mail |
 | 61 – 63 | Admin: mark a game as on PlayStation; search by system; unmark it |
 | 64, 65 | Automatic sync: read the setting, turn it off or on |
+| 66 – 80 | Profile settings, shelves (stats, recently played, picked achievements), public profile and player search without token, avatar gallery, pick, upload (choose a file in the Body tab), reset; private again |
 | 58 – 60 | Unlink my account; delete my account without confirm (safety check); **delete my account for good** (test accounts only) |
 
 **Collection Runner recipe** (17, 19, 20): Run collection → select **only that request** → Iterations 20 → Delay 3000–5000 ms.
@@ -702,7 +759,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `Could not resolve placeholder 'X'` at start | Variable missing from `.env`, or the app was not started from the project root |
 | Flyway: `canceling statement due to statement timeout` | A migration tried to alter `flyway_schema_history` while Flyway holds it. Do that by hand, after the first start |
 | Flyway: `Found non-empty schema(s) "public" but no schema history table` | Tables exist from a manual run. Drop them and let Flyway create them |
-| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V21 must be there) |
+| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V24 must be there) |
 | V16 fails (`permission denied` or `function unaccent does not exist`) | Enable `pg_trgm` and `unaccent` in Supabase (Database → Extensions) and restart |
 | `401` with a token that looks valid | The token and the service-account key belong to different Firebase projects. The server log gives the reason |
 | `403 email_not_verified` | The e-mail is not verified, or the token is older than the verification: refresh it (`getIdToken(true)`, or Postman request 1) |
@@ -721,7 +778,7 @@ Next, in this order:
 
 1. **Xbox and PSN**: their library, catalog and identity adapters, plus an admin "compare achievements" endpoint that
    fills `achievement_mapping`.
-2. **Community**: opt-in public profiles and player search (by public id and display name). Comments come later.
+2. **Comments** between players on public profiles (with moderation for the `SUPPORT` role).
 3. **AI chat** that helps players find how to obtain achievements.
 
 Known gaps: no automated tests for persistence or the HTTP layer; Steam's "most played" chart and store-browse endpoints
@@ -752,11 +809,14 @@ are public but not documented by Valve and could change.
 | Collections hold only games the user owns (any game can still be tracked or pinned); library sorted by last played | Agreed |
 | Users can unlink accounts and delete their account (data and Firebase sign-in); the only admin cannot | GDPR right to erasure; nobody gets locked out |
 | In-memory rate limiting, no external service | One instance on a free plan; nothing extra to run or pay for |
+| Public profiles: nothing shown unless opted in; content only through shelves the user builds | Privacy first: no one discloses anything they did not choose to |
+| Default avatars are CC0 art, never console makers' characters | Copyright: Nintendo, Xbox and PlayStation art needs a license |
 | Player search on a separate community page, only **opted-in** profiles | Privacy |
 | Readable game URLs: `/games/{id}-{slug}` | Shareable, search-engine friendly; the id decides |
 
 ## Changelog
 
+- **feat/community**: public profiles (opt-in), shelves, player search, avatars with upload (V22–V24).
 - **feat/auto-sync**: automatic library sync of games played since the last sync (V21); auto-sync setting.
 - **feat/protection**: rate limiting (429 with Retry-After), short browser caching of the public catalog.
 - **feat/systems**: systems a game is available on (V20), full country list (V19), linked accounts list wrapped in an object.
