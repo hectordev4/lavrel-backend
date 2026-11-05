@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase.AuthenticatedUser;
 import com.lavrel.user.application.port.out.TokenVerifierPort;
 import com.lavrel.user.application.port.out.TokenVerifierPort.VerifiedToken;
+import com.lavrel.user.application.port.out.UserActivityPort;
 import com.lavrel.user.application.port.out.UserRepositoryPort;
 import com.lavrel.user.domain.PublicIds;
 import com.lavrel.user.domain.Role;
@@ -28,8 +29,9 @@ class AuthenticateUserServiceTest {
     private final UserRepositoryPort users = mock(UserRepositoryPort.class);
     private final PublicIdAllocator publicIds = mock(PublicIdAllocator.class);
     private final UsernameGenerator usernames = mock(UsernameGenerator.class);
+    private final UserActivityPort activity = mock(UserActivityPort.class);
     private final AuthenticateUserService service =
-            new AuthenticateUserService(tokens, users, publicIds, usernames, CLOCK);
+            new AuthenticateUserService(tokens, users, publicIds, usernames, activity, CLOCK);
 
     @Test
     void newUserIsAPlainUserWithAFriendlyNameAndAPublicId() {
@@ -88,6 +90,18 @@ class AuthenticateUserServiceTest {
         service.authenticate("t");
 
         Mockito.verify(users, Mockito.never()).save(any());
+    }
+
+    @Test
+    void everyAuthenticationRecordsActivity() {
+        User stored = User.restore(7L, PublicIds.MIN, "uid-7", "SwiftOtter", "a@b.c", true, null, null, Role.USER,
+                CLOCK.instant());
+        when(tokens.verify("t")).thenReturn(new VerifiedToken("uid-7", "a@b.c", true, null, null));
+        when(users.findByFirebaseUid("uid-7")).thenReturn(Optional.of(stored));
+
+        service.authenticate("t");
+
+        Mockito.verify(activity).recordSeen(7L, CLOCK.instant());
     }
 
     private static User withId(User u) {
