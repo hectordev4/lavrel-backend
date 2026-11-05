@@ -1,13 +1,14 @@
 package com.lavrel.catalog.adapter.in.web;
 
-import com.lavrel.catalog.application.port.in.SearchGamesUseCase;
 import com.lavrel.catalog.application.port.in.SearchGamesUseCase.GameCard;
 import com.lavrel.catalog.application.port.in.SearchGamesUseCase.GamePage;
 import com.lavrel.catalog.application.port.in.SearchGamesUseCase.GameSearchCriteria;
 import com.lavrel.catalog.application.port.in.SearchGamesUseCase.PlayerMode;
 import com.lavrel.catalog.application.port.in.SearchGamesUseCase.Sort;
+import com.lavrel.catalog.application.port.in.SearchGamesUseCase;
 import com.lavrel.catalog.domain.GameSystem;
 import com.lavrel.catalog.domain.Slug;
+import com.lavrel.shared.web.PublicCache;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -44,7 +46,7 @@ public class GameSearchController {
     }
 
     @GetMapping
-    public SearchResponse search(
+    public ResponseEntity<SearchResponse> search(
             @RequestParam(name = "q", required = false) @Size(min = 2, max = 100) String q,
             @RequestParam(name = "tag", required = false)
             @Size(max = GameSearchCriteria.MAX_TAGS) List<@NotNull @Positive Long> tagIds,
@@ -60,8 +62,9 @@ public class GameSearchController {
             @RequestParam(name = "size", defaultValue = "20") @Min(1) @Max(GameSearchCriteria.MAX_SIZE) int size) {
         GamePage result = searchGames.search(new GameSearchCriteria(q, tagIds, franchiseId, developerId, publisherId,
                 parseModes(modes), systems, sort == null ? null : Sort.valueOf(sort.toUpperCase(Locale.ROOT)), page, size));
-        return new SearchResponse(result.games().stream().map(GameCardResponse::from).toList(), result.page(),
-                result.size(), result.hasMore());
+        return ResponseEntity.ok().cacheControl(PublicCache.SEARCH).body(new SearchResponse(
+                result.games().stream().map(GameCardResponse::from).toList(), result.page(), result.size(),
+                result.hasMore()));
     }
 
     private static Set<PlayerMode> parseModes(List<String> modes) {
