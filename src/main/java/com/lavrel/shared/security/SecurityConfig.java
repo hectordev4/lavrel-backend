@@ -60,6 +60,9 @@ public class SecurityConfig {
                         // Public catalog: search, filter options, game pages and achievement lists, no login needed.
                         .requestMatchers(HttpMethod.GET, "/api/games", "/api/games/*", "/api/games/*/achievements",
                                 "/api/search", "/api/tags", "/api/creators").permitAll()
+                        // Public profiles and player search: only profiles their owner made public.
+                        .requestMatchers(HttpMethod.GET, "/api/users", "/api/users/*", "/api/avatars/gallery")
+                                .permitAll()
                         // Reachable before the e-mail is verified: the own profile (to show "check your inbox"),
                         // deleting the account (someone who signed up with another person's e-mail can undo it),
                         // and the dev-only verification shortcut (absent unless app.dev.verify-email-uids is set).

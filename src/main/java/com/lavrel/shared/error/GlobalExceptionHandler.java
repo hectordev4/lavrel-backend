@@ -10,6 +10,12 @@ import com.lavrel.library.domain.GameNotOwnedException;
 import com.lavrel.library.domain.InvalidCollectionNameException;
 import com.lavrel.library.domain.InvalidCollectionOrderException;
 import com.lavrel.library.domain.ProfilePrivateException;
+import com.lavrel.profile.domain.AvatarStorageUnavailableException;
+import com.lavrel.profile.domain.InvalidAvatarException;
+import com.lavrel.profile.domain.InvalidShelfException;
+import com.lavrel.profile.domain.ProfileNotFoundException;
+import com.lavrel.profile.domain.ShelfLimitReachedException;
+import com.lavrel.profile.domain.ShelfNotFoundException;
 import com.lavrel.shared.domain.PlatformNotSupportedException;
 import com.lavrel.shared.domain.PlatformUnavailableException;
 import com.lavrel.shared.error.ApiError.FieldProblem;
@@ -129,6 +135,23 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, "invalid_collection_order", e.getMessage());
     }
 
+    @ExceptionHandler(InvalidAvatarException.class)
+    public ResponseEntity<ApiError> invalidAvatar(InvalidAvatarException e) {
+        return error(HttpStatus.BAD_REQUEST, "invalid_avatar", e.getMessage());
+    }
+
+    @ExceptionHandler(AvatarStorageUnavailableException.class)
+    public ResponseEntity<ApiError> avatarStorageUnavailable(AvatarStorageUnavailableException e) {
+        log.warn("Avatar storage unavailable: {}", e.toString());
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "avatar_storage_unavailable",
+                "Pictures cannot be uploaded right now. Try again later.");
+    }
+
+    @ExceptionHandler(InvalidShelfException.class)
+    public ResponseEntity<ApiError> invalidShelf(InvalidShelfException e) {
+        return error(HttpStatus.BAD_REQUEST, "invalid_shelf", e.getMessage());
+    }
+
     @ExceptionHandler(InvalidComparisonException.class)
     public ResponseEntity<ApiError> invalidComparison(InvalidComparisonException e) {
         return error(HttpStatus.BAD_REQUEST, "invalid_comparison", e.getMessage());
@@ -163,6 +186,16 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.NOT_FOUND, "game_not_tracked", e.getMessage());
     }
 
+    @ExceptionHandler(ProfileNotFoundException.class)
+    public ResponseEntity<ApiError> profileNotFound(ProfileNotFoundException e) {
+        return error(HttpStatus.NOT_FOUND, "profile_not_found", e.getMessage());
+    }
+
+    @ExceptionHandler(ShelfNotFoundException.class)
+    public ResponseEntity<ApiError> shelfNotFound(ShelfNotFoundException e) {
+        return error(HttpStatus.NOT_FOUND, "shelf_not_found", e.getMessage());
+    }
+
     @ExceptionHandler(CollectionNotFoundException.class)
     public ResponseEntity<ApiError> collectionNotFound(CollectionNotFoundException e) {
         return error(HttpStatus.NOT_FOUND, "collection_not_found", e.getMessage());
@@ -189,6 +222,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(QuickAccessFullException.class)
     public ResponseEntity<ApiError> quickAccessFull(QuickAccessFullException e) {
         return error(HttpStatus.CONFLICT, "quick_access_full", e.getMessage());
+    }
+
+    @ExceptionHandler(ShelfLimitReachedException.class)
+    public ResponseEntity<ApiError> shelfLimitReached(ShelfLimitReachedException e) {
+        return error(HttpStatus.CONFLICT, "shelf_limit_reached", e.getMessage());
     }
 
     @ExceptionHandler(CollectionNameTakenException.class)
