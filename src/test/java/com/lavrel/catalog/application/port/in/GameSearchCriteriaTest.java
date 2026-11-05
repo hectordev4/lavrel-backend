@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 class GameSearchCriteriaTest {
 
     private static GameSearchCriteria criteria(String q, List<Long> tags, Sort sort, int page, int size) {
-        return new GameSearchCriteria(q, tags, null, null, null, null, sort, page, size);
+        return new GameSearchCriteria(q, tags, null, null, null, null, null, sort, page, size);
     }
 
     @Test

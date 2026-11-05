@@ -4,6 +4,8 @@ import com.lavrel.catalog.application.port.out.AchievementRepositoryPort;
 import com.lavrel.catalog.application.port.out.GameMappingRepositoryPort;
 import com.lavrel.catalog.application.port.out.GameMetadataRepositoryPort;
 import com.lavrel.catalog.application.port.out.GameRepositoryPort;
+import com.lavrel.catalog.application.port.out.GameSystemRepositoryPort;
+import com.lavrel.catalog.application.port.out.GameSystemRepositoryPort.Source;
 import com.lavrel.catalog.application.port.out.PlatformCatalogPort.PlatformAchievement;
 import com.lavrel.catalog.application.port.out.PlatformCatalogPort.PlatformGameInfo;
 import com.lavrel.catalog.application.port.out.PlatformCatalogPort.StoreItem;
@@ -11,6 +13,7 @@ import com.lavrel.catalog.domain.Achievement;
 import com.lavrel.catalog.domain.Game;
 import com.lavrel.catalog.domain.GameMapping;
 import com.lavrel.catalog.domain.GameMetadata;
+import com.lavrel.catalog.domain.GameSystem;
 import com.lavrel.shared.domain.Platform;
 import java.time.Clock;
 import java.time.Instant;
@@ -29,17 +32,19 @@ class SteamGameWriter {
     private final GameMappingRepositoryPort gameMappings;
     private final AchievementRepositoryPort achievements;
     private final GameMetadataRepositoryPort metadata;
+    private final GameSystemRepositoryPort systems;
     private final SteamTagNames tagNames;
     private final TransactionTemplate tx;
     private final Clock clock;
 
     SteamGameWriter(GameRepositoryPort games, GameMappingRepositoryPort gameMappings,
                     AchievementRepositoryPort achievements, GameMetadataRepositoryPort metadata,
-                    SteamTagNames tagNames, TransactionTemplate tx, Clock clock) {
+                    GameSystemRepositoryPort systems, SteamTagNames tagNames, TransactionTemplate tx, Clock clock) {
         this.games = games;
         this.gameMappings = gameMappings;
         this.achievements = achievements;
         this.metadata = metadata;
+        this.systems = systems;
         this.tagNames = tagNames;
         this.tx = tx;
         this.clock = clock;
@@ -60,6 +65,7 @@ class SteamGameWriter {
                             a.description(), a.iconUrl(), a.hidden(), now))
                     .toList());
             metadata.save(game.id(), gameMetadata);
+            systems.add(game.id(), GameSystem.PC, Source.IMPORTED);
             return game.id();
         });
     }
@@ -76,6 +82,7 @@ class SteamGameWriter {
             game.refreshFromPlatform(info.title(), info.coverImageUrl(), info.description(), storeUrl(appId));
             games.save(game);
             metadata.save(gameId, gameMetadata);
+            systems.add(gameId, GameSystem.PC, Source.IMPORTED);
         });
     }
 

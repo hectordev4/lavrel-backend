@@ -110,7 +110,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
-              "pm.test(\"Has countries\", function () { pm.expect(pm.response.json().countries.length).to.be.above(0); });"
+              "pm.test(\"Has countries\", function () { pm.expect(pm.response.json().countries.length).to.be.above(0); });",
+              "pm.test(\"Full list\", function () { pm.expect(pm.response.json().countries.length).to.be.above(200); });"
             ]
           }
         }
@@ -272,7 +273,7 @@
             "type": "text/javascript",
             "exec": [
               "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
-              "const accounts = pm.response.json();",
+              "const accounts = pm.response.json().accounts;",
               "pm.test(\"No database ids exposed\", function () { accounts.forEach(a => pm.expect(a).to.not.have.property(\"id\")); });",
               "if (accounts.length > 0) {",
               "  pm.collectionVariables.set(\"accountPlatform\", accounts[0].platform.toLowerCase());",
@@ -2406,6 +2407,116 @@
           ]
         },
         "description": "DELETES THE SIGNED-IN ACCOUNT FOR GOOD: our data (accounts, library, unlocks, tracking list, collections) and the Firebase sign-in account. Only use it with a throwaway test account; never include it in a Collection Runner run. The only admin gets 409 last_admin."
+      },
+      "response": []
+    },
+    {
+      "name": "61. Admin: mark a game as available on PlayStation",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/games/{{trackGameId}}/systems/playstation",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "games",
+            "{{trackGameId}}",
+            "systems",
+            "playstation"
+          ]
+        },
+        "description": "Systems: pc, xbox, playstation. PC comes automatically for Steam games; Xbox and PlayStation are set here for now. Then request 16 shows availableOn."
+      },
+      "response": []
+    },
+    {
+      "name": "62. Search: games on PlayStation (public)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Every card is on PlayStation\", function () { pm.response.json().games.forEach(g => pm.expect(g.availableOn).to.include(\"PLAYSTATION\")); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/games?system=playstation",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games"
+          ],
+          "query": [
+            {
+              "key": "system",
+              "value": "playstation"
+            }
+          ]
+        },
+        "description": "Several systems (system=pc&system=xbox) must all apply."
+      },
+      "response": []
+    },
+    {
+      "name": "63. Admin: unmark PlayStation",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/games/{{trackGameId}}/systems/playstation",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "games",
+            "{{trackGameId}}",
+            "systems",
+            "playstation"
+          ]
+        },
+        "description": "Removing PC from a Steam game only lasts until its next refresh."
       },
       "response": []
     }

@@ -57,6 +57,7 @@ pages are public and can be shown to people who are not logged in.
 | Achievement list per game with unlock state and percentages | Working |
 | Unlink a platform account; delete my account (Firebase sign-in included) | Working |
 | Build and tests on every push and pull request (GitHub Actions) | Working |
+| Systems a game is available on (PC, Xbox, PlayStation), on game pages and as a search filter | Working |
 | Rate limiting and caching on public endpoints | Planned |
 | Community (opt-in profiles, player search, comments) | Planned |
 | Xbox and PSN | Planned (the platform layer is ready) |
@@ -131,7 +132,7 @@ src/main/java/com/lavrel
 └── devtools/    fake data, one-time e-mail verification
 src/main/resources
 ├── application.yml
-└── db/migration/   V1 … V17
+└── db/migration/   V1 … V20
 ```
 
 ### The Steam import (`catalog/application/service/steam`)
@@ -263,6 +264,9 @@ Flyway is the only source of schema changes. Never edit a migration that has bee
 | V15 | `tracked_game` (tracking list and quick-access pins) |
 | V16 | Search: `pg_trgm`, `unaccent`, `lavrel_normalize()`, `game.search_name` with a trigram index, sort indexes |
 | V17 | `collection`, `collection_game` (collections of owned games) |
+| V18 | Longer achievement texts (names and Steam ids up to 1024 characters, descriptions up to 8000) |
+| V19 | The full country list (ISO 3166-1), except countries under US sanctions where Steam is not offered and uninhabited territories |
+| V20 | `game_system` (PC, Xbox, PlayStation), with PC filled for every Steam game |
 
 There is no V8 on purpose (it was superseded by V9 before release). Flyway does not need consecutive numbers.
 Check what is applied with:
@@ -295,6 +299,7 @@ erDiagram
     game ||--o{ game_feature : "has"
     feature ||--o{ game_feature : "has"
     game ||--o{ game_age_rating : "PEGI, ESRB..."
+    game ||--o{ game_system : "PC, Xbox, PlayStation"
 ```
 
 Also: `catalog_import_failure` (apps Steam gave us that were rejected, and why) and `flyway_schema_history`.
@@ -378,6 +383,10 @@ someone else's account answers `404` like a missing one.
 
 ### What is stored for each game
 
+Available on: **systems** by family (PC, Xbox, PlayStation). PC comes from Steam; Xbox and PlayStation are set by an
+admin until their adapters exist. A system is not a linkable account: Nintendo can be added later even without one.
+
+
 Title, description, cover, Steam store page, release date, platforms, review count and percentage, free flag, required
 age, **developers, publishers and franchise**, **tags** (top 20 with Steam's weight), **genres**, **features**
 (player modes, accessibility, controller support…), and **age ratings** (PEGI, ESRB, USK, CERO…). All of it is
@@ -427,6 +436,7 @@ a request for each, with a Collection Runner recipe for the long ones.
 | `GET /api/admin/catalog/steam/exceptions` | Lists the exempt games |
 | `DELETE /api/admin/catalog/steam/exceptions/{appId}` | Removes an exception; the next refresh judges the game again |
 | `PATCH /api/admin/users/{publicId}/role` | `{"role": "SUPPORT"}`: `USER`, `SUPPORT` or `ADMIN` |
+| `PUT` / `DELETE /api/admin/catalog/games/{gameId}/systems/{system}` | Mark or unmark a game as available on `pc`, `xbox` or `playstation` |
 
 Limits are validated: `limit` 1–200, app ids numeric, at most 500 per request.
 
@@ -446,6 +456,7 @@ All search endpoints are **public** and only return published, safe-for-work gam
 | `tag` | Up to 5 tag ids; **all** must apply. A tag counts only when it really describes the game: among its top 10 tags, or holding at least a quarter of its top tag's weight |
 | `franchise`, `developer`, `publisher` | Creator ids from `/api/creators` |
 | `mode` | `single-player`, `co-op`, `multiplayer`; all must be offered |
+| `system` | `pc`, `xbox`, `playstation`; the game must be available on all of them |
 | `sort` | `relevance` (default with `q`: exact name, starts with, contains, close matches), `popular` (default without `q`: most reviews), `rating` (needs 100 reviews to rank high), `newest`, `name` |
 | `page`, `size` | From 0; size 20 by default, at most 50. `hasMore` tells whether there is a next page (no slow total count) |
 
@@ -506,8 +517,8 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 |---|---|---|
 | PATCH | `/api/currentuser/username` | `{"username": "Héctor K."}`. `204` |
 | PATCH | `/api/currentuser/country` | `{"countryId": 12}`; `null` clears it. `204` |
-| GET | `/api/countries` | `{"countries": [...]}` |
-| GET | `/api/currentuser/accounts` | Linked accounts: `platform`, `externalId`, `displayName`, `lastSyncedAt` |
+| GET | `/api/countries` | `{"countries": [...]}`: about 240 countries |
+| GET | `/api/currentuser/accounts` | `{"accounts": [...]}`: `platform`, `externalId`, `displayName`, `lastSyncedAt` |
 | POST | `/api/currentuser/accounts/{platform}/link` | Returns the platform login URL |
 | POST | `/api/currentuser/accounts/{platform}/{externalId}/sync` | Syncs one account |
 | DELETE | `/api/currentuser/accounts/{platform}/{externalId}` | Unlinks it: its games leave the library and the unlocks recorded from it are removed. `204` |
@@ -610,6 +621,7 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 47 – 53 | Collections: create (saves `collectionId`), list, add a game, browse it, rename, remove the game, delete |
 | 54, 55 | Achievement list of a game, without and with a token |
 | 56, 57 | Firebase: send me the verification e-mail; send me a password-reset e-mail |
+| 61 – 63 | Admin: mark a game as on PlayStation; search by system; unmark it |
 | 58 – 60 | Unlink my account; delete my account without confirm (safety check); **delete my account for good** (test accounts only) |
 
 **Collection Runner recipe** (17, 19, 20): Run collection → select **only that request** → Iterations 20 → Delay 3000–5000 ms.
@@ -647,7 +659,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `Could not resolve placeholder 'X'` at start | Variable missing from `.env`, or the app was not started from the project root |
 | Flyway: `canceling statement due to statement timeout` | A migration tried to alter `flyway_schema_history` while Flyway holds it. Do that by hand, after the first start |
 | Flyway: `Found non-empty schema(s) "public" but no schema history table` | Tables exist from a manual run. Drop them and let Flyway create them |
-| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V17 must be there) |
+| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V20 must be there) |
 | V16 fails (`permission denied` or `function unaccent does not exist`) | Enable `pg_trgm` and `unaccent` in Supabase (Database → Extensions) and restart |
 | `401` with a token that looks valid | The token and the service-account key belong to different Firebase projects. The server log gives the reason |
 | `403 email_not_verified` | The e-mail is not verified, or the token is older than the verification: refresh it (`getIdToken(true)`, or Postman request 1) |
@@ -664,12 +676,11 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 
 Next, in this order:
 
-1. **Systems a game is available on** (PC, Xbox, PlayStation; Switch later), shown on the game page and as a search filter.
-2. **Protect the public endpoints**: rate limiting and short caching on search and game pages.
-3. **Xbox and PSN**: their library, catalog and identity adapters, plus an admin "compare achievements" endpoint that
+1. **Protect the public endpoints**: rate limiting and short caching on search and game pages.
+2. **Xbox and PSN**: their library, catalog and identity adapters, plus an admin "compare achievements" endpoint that
    fills `achievement_mapping`.
-4. **Community**: opt-in public profiles and player search (by public id and display name), then comments so players on
-   different platforms can help each other. Needs moderation tools (the `SUPPORT` role).
+3. **Community**: opt-in public profiles and player search (by public id and display name). Comments come later.
+4. **Automatic library sync**: a scheduled sync that only reads the unlocks of games whose playtime changed.
 5. **AI chat** that helps players find how to obtain achievements.
 
 Known gaps: no automated tests for persistence or the HTTP layer; Steam's "most played" chart and store-browse endpoints
@@ -704,6 +715,7 @@ are public but not documented by Valve and could change.
 
 ## Changelog
 
+- **feat/systems**: systems a game is available on (V20), full country list (V19), linked accounts list wrapped in an object.
 - **feat/account-control**: unlink a platform account, delete my account (GDPR), CI on GitHub Actions.
 - **feat/library**: my library (owned games with progress), collections of owned games (V17), achievement list per game.
 - **feat/search**: public full search with filters and sorting, type-ahead, tag and creator options (V16).
