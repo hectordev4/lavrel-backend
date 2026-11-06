@@ -61,6 +61,7 @@ pages are public and can be shown to people who are not logged in.
 | Rate limiting on every endpoint; short browser caching of the public catalog | Working |
 | Automatic library sync (every 6 hours, only games played since the last sync; users can turn it off) | Working |
 | Public profiles (opt-in) with customizable shelves, player search, avatars (generated, gallery, upload) | Working |
+| AI achievement guide: "how do I get this?" and follow-ups (Cloudflare Workers AI, licensed wikis, saved guides) | Working |
 | Comments between players | Planned |
 | Xbox and PSN | Planned (the platform layer is ready) |
 
@@ -100,6 +101,7 @@ feature/
 | `progress` | Unlocks and statistics |
 | `tracking` | The tracking list (statuses, progress cards) and quick access |
 | `profile` | Public profiles (opt-in), shelves, player search and avatars |
+| `assistant` | The AI achievement guide: saved guides, reference wikis, daily limits, the model adapter |
 | `platform.adapter.out.steam` | Steam clients only (`SteamLibraryClient`, `SteamCatalogClient`, `SteamOpenIdVerifier`). No business logic |
 | `shared` | `Platform`, `PlatformRegistry`, error format, security configuration, `Clock`, Firebase setup |
 | `devtools` | Development-only tools: fake data and the one-time e-mail verification |
@@ -135,7 +137,7 @@ src/main/java/com/lavrel
 └── devtools/    fake data, one-time e-mail verification
 src/main/resources
 ├── application.yml
-└── db/migration/   V1 … V24
+└── db/migration/   V1 … V26
 ```
 
 ### The Steam import (`catalog/application/service/steam`)
@@ -211,6 +213,8 @@ and costs: [docs/DEPLOY.md](docs/DEPLOY.md). Locally, keep using `mvn spring-boo
 | `STEAM_STATE_SECRET` | yes | At least 32 characters; signs the account-link `state` |
 | `STEAM_CALLBACK_URL` | no | Default `http://localhost:8080/api/steam/callback` (`/api/platforms/steam/callback` works too) |
 | `FRONTEND_BASE_URL` | no | Empty: the link callback answers JSON. Set: it redirects to `{url}/{platform}/linked` |
+| `CLOUDFLARE_ACCOUNT_ID` | no | Cloudflare account id, for the AI assistant (Workers AI) |
+| `CLOUDFLARE_AI_TOKEN` | no | Cloudflare API token limited to **Workers AI**. A secret. Without both the assistant answers `503` |
 | `SUPABASE_URL` | no | `https://<project>.supabase.co`, for avatar uploads (Supabase Storage). Without it uploads answer `503` |
 | `SUPABASE_SERVICE_KEY` | no | Supabase **service-role** key, for avatar uploads. A secret: backend environment only |
 | `FAKE_DATA_ENABLED` | no | `true` enables the fake-data endpoints (development only) |
@@ -242,6 +246,9 @@ Spring does not read `.env` by itself: `application.yml` imports it with
 | `app.auto-sync.every` | `PT6H` | An account is synced automatically at most this often |
 | `app.auto-sync.check-every` / `first-run-after` | `PT30M` / `PT10M` | How often the scheduler looks for accounts to sync, and the wait after start-up |
 | `app.auto-sync.active-days` / `batch-size` / `pause-ms` | `30` / `20` / `1000` | Only users seen in this many days; accounts per round; pause between accounts |
+| `app.assistant.model` | `@cf/meta/llama-3.1-8b-instruct-fp8` | The Workers AI model that writes answers (env `APP_ASSISTANT_MODEL`). Cloudflare retires models: if the log says the model is not offered (410), pick another from its catalog |
+| `app.assistant.user-daily-limit` / `global-daily-limit` | `20` / `400` | New answers per user per day, and for everyone together (protects the free daily AI allowance); saved guides are not counted |
+| `app.assistant.max-tokens` | `600` | Longest answer |
 | `app.dev.verify-email-uids` | not set | Development only: enables the one-time e-mail verification for these Firebase UIDs. Remove after use |
 
 ## Database
@@ -284,6 +291,8 @@ Flyway is the only source of schema changes. Never edit a migration that has bee
 | V22 | `profile_settings` (public profile and what it shows; everything private by default) |
 | V23 | `profile_shelf`, `profile_shelf_achievement` (profile shelves) |
 | V24 | Avatar kind and value on `profile_settings` |
+| V25 | `assistant_guide` (saved guides), `assistant_usage` (daily limits) |
+| V26 | `assistant_wiki` (approved reference wiki per game) |
 
 There is no V8 on purpose (it was superseded by V9 before release). Flyway does not need consecutive numbers.
 Check what is applied with:
@@ -465,6 +474,8 @@ a request for each, with a Collection Runner recipe for the long ones.
 | `PATCH /api/admin/users/{publicId}/role` | `{"role": "SUPPORT"}`: `USER`, `SUPPORT` or `ADMIN` |
 | `PUT` / `DELETE /api/admin/catalog/games/{gameId}/systems/{system}` | Mark or unmark a game as available on `pc`, `xbox` or `playstation` |
 | `DELETE /api/admin/users/{publicId}/avatar` | Remove someone's picture (moderation) |
+| `PUT` / `GET` / `DELETE /api/admin/assistant/wikis/{gameId}` | Approve, list or remove a game's reference wiki (`{"apiUrl", "license"}`) |
+| `DELETE /api/admin/assistant/guides/games/{gameId}` | Forget a game's saved guides |
 
 Limits are validated: `limit` 1–200, app ids numeric, at most 500 per request.
 
@@ -540,6 +551,31 @@ such as the GPS location; PNG keeps its transparency. GIFs are kept exactly as u
 included, if they are at most 1 MB, 512×512 and 300 frames. Others only see the picture if `showAvatar` is on;
 otherwise they see the generated one. Admins can remove a picture (`DELETE /api/admin/users/{publicId}/avatar`).
 
+## AI achievement guide
+
+On an achievement, a signed-in player asks **"how do I get this?"** and can then ask follow-up questions about it.
+
+- **Model:** Cloudflare **Workers AI** (default `@cf/meta/llama-3.1-8b-instruct-fp8`), called by the backend through
+  `LanguageModelPort`, so it can be replaced by another provider with one adapter. The free plan gives a daily
+  allowance; when it is used up Cloudflare refuses (no bill) and players get `503 assistant_unavailable`.
+- **Knowledge:** when an admin approved a **reference wiki** for the game (a MediaWiki such as Fandom or wiki.gg whose
+  license allows reuse, e.g. CC BY-SA), the backend searches it for the achievement, keeps the relevant part of the
+  best pages and gives it to the model; the answer is `grounded` and lists its `sources` (page, link, license).
+  Otherwise the model answers from its own knowledge, `grounded: false`, which the frontend should flag as possibly
+  inaccurate. Wiki text is read live and never stored; only the answer and the links are.
+- **Saved guides:** the first answer for an achievement (per language) is saved and reused for everyone: grounded ones
+  for 30 days, others for 7. They never contain anything about the player. Follow-ups are never saved.
+- **Limits:** 20 new answers per player per day and 400 for everybody (saved guides are free), checked atomically in
+  the database, on top of the general rate limiting.
+- **Spoilers:** for hidden achievements nothing is generated until the player sends `spoilers=true`
+  (status `SPOILER_CONSENT_REQUIRED`).
+- **Safety:** the model has **no tools**: it only receives text and returns text, so it cannot read or change
+  anything. Reference text is fenced and declared as data, not instructions. Answers are Markdown: render them as
+  text, never as raw HTML. Only the game and the achievement are sent, never the player's e-mail, name or progress.
+- **Admins** approve a wiki per game (`PUT /api/admin/assistant/wikis/{gameId}`), checking its license first. Only
+  public `https` domain names ending in `/api.php` are accepted (no IP addresses or internal hosts), and changing a
+  game's wiki forgets its saved guides.
+
 ## Rate limiting and caching
 
 The API runs on free plans (Render, Supabase), so every request goes through a rate limiter (`RateLimitFilter`, after
@@ -611,6 +647,9 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 | PATCH / DELETE | `/api/currentuser/profile/shelves/{id}` | New title / remove |
 | PUT | `/api/currentuser/profile/shelves` | `{"shelfIds": [...]}`: new order |
 | PUT | `/api/currentuser/profile/shelves/{id}/achievements` | `{"achievementIds": [...]}`: up to 12 of my unlocks |
+| GET | `/api/games/{gameId}/achievements/{achievementId}/guide?spoilers=&lang=` | The AI guide: saved (free) or new (counts) |
+| POST | `/api/games/{gameId}/achievements/{achievementId}/guide/questions` | `{"question", "spoilers", "lang"}`: a follow-up (counts, not saved) |
+| GET | `/api/currentuser/assistant/usage` | `{"usedToday", "dailyLimit"}` |
 | GET / PUT / DELETE | `/api/currentuser/profile/avatar` | My avatar / upload a picture (raw image body) / back to generated |
 | PUT | `/api/currentuser/profile/avatar/gallery` | `{"galleryId": "gallery-07"}` |
 | GET | `/api/countries` | `{"countries": [...]}`: about 240 countries |
@@ -681,15 +720,15 @@ Every error is `{"error": "<code>", "message": "<text>"}`. Validation errors add
 
 | Status | Codes |
 |---|---|
-| 400 | `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `country_not_found`, `invalid_identity_proof`, `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order`, `invalid_collection_name`, `invalid_collection_order`, `invalid_shelf`, `invalid_avatar` |
+| 400 | `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `country_not_found`, `invalid_identity_proof`, `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order`, `invalid_collection_name`, `invalid_collection_order`, `invalid_shelf`, `invalid_avatar`, `invalid_question`, `invalid_wiki_source` |
 | 401 | `unauthorized` (missing or invalid token) |
 | 403 | `email_not_verified`, `forbidden` |
-| 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `collection_not_found`, `profile_not_found`, `shelf_not_found`, `not_found` |
+| 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `collection_not_found`, `profile_not_found`, `shelf_not_found`, `achievement_not_found`, `not_found` |
 | 409 | `account_already_linked`, `already_verified`, `quick_access_full`, `collection_name_taken`, `collection_limit_reached`, `last_admin`, `shelf_limit_reached` |
 | 422 | `profile_private`, `platform_not_supported`, `game_not_owned` |
-| 429 | `too_many_requests` (with a `Retry-After` header, in seconds) |
+| 429 | `too_many_requests` (with a `Retry-After` header, in seconds), `assistant_quota_exceeded` |
 | 502 | `platform_unavailable`, `identity_provider_unavailable` |
-| 503 | `avatar_storage_unavailable` |
+| 503 | `avatar_storage_unavailable`, `assistant_unavailable` |
 
 ## Postman collection
 
@@ -721,6 +760,8 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 56, 57 | Firebase: send me the verification e-mail; send me a password-reset e-mail |
 | 61 – 63 | Admin: mark a game as on PlayStation; search by system; unmark it |
 | 64, 65 | Automatic sync: read the setting, turn it off or on |
+| 81 – 84 | Assistant: guide (54 saves the achievement id), the same guide saved, a follow-up, my usage |
+| 85 – 88 | Admin: approve a reference wiki (check its license), list, forget saved guides, remove |
 | 66 – 80 | Profile settings, shelves (stats, recently played, picked achievements), public profile and player search without token, avatar gallery, pick, upload (choose a file in the Body tab), reset; private again |
 | 58 – 60 | Unlink my account; delete my account without confirm (safety check); **delete my account for good** (test accounts only) |
 
@@ -759,7 +800,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `Could not resolve placeholder 'X'` at start | Variable missing from `.env`, or the app was not started from the project root |
 | Flyway: `canceling statement due to statement timeout` | A migration tried to alter `flyway_schema_history` while Flyway holds it. Do that by hand, after the first start |
 | Flyway: `Found non-empty schema(s) "public" but no schema history table` | Tables exist from a manual run. Drop them and let Flyway create them |
-| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V24 must be there) |
+| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V26 must be there) |
 | V16 fails (`permission denied` or `function unaccent does not exist`) | Enable `pg_trgm` and `unaccent` in Supabase (Database → Extensions) and restart |
 | `401` with a token that looks valid | The token and the service-account key belong to different Firebase projects. The server log gives the reason |
 | `403 email_not_verified` | The e-mail is not verified, or the token is older than the verification: refresh it (`getIdToken(true)`, or Postman request 1) |
@@ -768,18 +809,20 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `404` on a game that exists | It is not published yet (no details). Run **enrich** |
 | Sync answers `422 profile_private` | In Steam: Profile → Edit Profile → Privacy Settings → Game details: **Public** |
 | Link fails with `invalid_identity_proof` | The `state` expired (10 minutes), was issued for another platform, or the callback URL differs from `STEAM_CALLBACK_URL` |
+| Assistant answers `503` and the log says Workers AI answered `410` / model not offered | Cloudflare retired the model: set `APP_ASSISTANT_MODEL` to one from https://developers.cloudflare.com/workers-ai/models/ |
 | Browser calls blocked by CORS | Add the frontend's origin (e.g. `http://localhost:4200`) to `app.cors.allowed-origins` |
 | `Error while fetching public key certificates: Not in GZIP format` | Firebase must use the JDK HTTP transport: `FirebaseConfig` sets `NetHttpTransport` |
 | Port 8080 already in use | An old instance is running: stop it with Ctrl+C |
 
 ## Roadmap
 
-Next, in this order:
+Future implementations:
 
 1. **Xbox and PSN**: their library, catalog and identity adapters, plus an admin "compare achievements" endpoint that
-   fills `achievement_mapping`.
-2. **Comments** between players on public profiles (with moderation for the `SUPPORT` role).
-3. **AI chat** that helps players find how to obtain achievements.
+   fills `achievement_mapping`. Both platforms are only reachable through unofficial routes, so this starts with a
+   decision on approach, risks and terms of service.
+2. **Comments** between players on public profiles (with moderation for the `SUPPORT` role); their tips can later become
+   another reference source for the AI guide.
 
 Known gaps: no automated tests for persistence or the HTTP layer; Steam's "most played" chart and store-browse endpoints
 are public but not documented by Valve and could change.
@@ -811,11 +854,16 @@ are public but not documented by Valve and could change.
 | In-memory rate limiting, no external service | One instance on a free plan; nothing extra to run or pay for |
 | Public profiles: nothing shown unless opted in; content only through shelves the user builds | Privacy first: no one discloses anything they did not choose to |
 | Default avatars are CC0 art, never console makers' characters | Copyright: Nintendo, Xbox and PlayStation art needs a license |
+| AI inside the backend, on Cloudflare Workers AI's free plan, no fine-tuning | One deploy and one security setup; the model runs elsewhere, so Render only waits; facts come from references, not training |
+| AI knowledge only from wikis whose license allows reuse (or the model's own, flagged) | Scraping and storing other sites' guides is a copyright and terms-of-service problem |
+| The AI has no tools and never sees personal data | It cannot read or change anything; a bad source can at most spoil one answer |
 | Player search on a separate community page, only **opted-in** profiles | Privacy |
 | Readable game URLs: `/games/{id}-{slug}` | Shareable, search-engine friendly; the id decides |
 
 ## Changelog
 
+- **fix/assistant-model**: default model `@cf/meta/llama-3.1-8b-instruct-fp8` (the previous one was retired by Cloudflare); clear log when a model is retired.
+- **feat/assistant**: AI achievement guide on Cloudflare Workers AI with licensed reference wikis, saved guides and daily limits (V25, V26).
 - **feat/community**: public profiles (opt-in), shelves, player search, avatars with upload (V22–V24).
 - **feat/auto-sync**: automatic library sync of games played since the last sync (V21); auto-sync setting.
 - **feat/protection**: rate limiting (429 with Retry-After), short browser caching of the public catalog.

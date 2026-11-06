@@ -37,6 +37,12 @@ locally.
 `JAVA_TOOL_OPTIONS` replaces the default baked into the image: it keeps Java inside the free instance's 512 MB and
 makes startup lighter on its small CPU. Never set `FAKE_DATA_ENABLED` or `app.dev.verify-email-uids` here.
 
+**AI assistant (optional):** create a free Cloudflare account, then My Profile → API Tokens → Create Token → Custom
+token with **Account → Workers AI → Read** for your account only (optionally restricted to Render's outbound IPs:
+service → Connect → Outbound). Add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_AI_TOKEN` in Render. Use a separate token
+for local development, so one can be revoked without breaking the other. Never paste tokens anywhere else. Without
+them the assistant answers `503 assistant_unavailable` and everything else works.
+
 **Avatar uploads (optional):** in Supabase, Storage → **New bucket** `avatars`, marked **Public**. Then add two
 environment variables in Render: `SUPABASE_URL` (Project Settings → API → Project URL) and `SUPABASE_SERVICE_KEY`
 (the `service_role` key on the same page; a secret, never put it in the frontend). Without them everything works except
