@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 
 class WorkersAiModelTest {
 
-    private final WorkersAiModel model = new WorkersAiModel("", "", "@cf/meta/llama-3.1-8b-instruct");
+    private final WorkersAiModel model = new WorkersAiModel("", "", "@cf/meta/llama-3.1-8b-instruct-fp8");
 
     @Test
     void readsTheOpenAiFormat() {

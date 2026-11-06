@@ -20,7 +20,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Cloudflare Workers AI through its OpenAI-compatible chat endpoint. CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_AI_TOKEN
- * (a token limited to Workers AI) come from the environment; the model from app.assistant.model. On the free plan
+ * (a token limited to Workers AI) come from the environment; the model from app.assistant.model
+ * (APP_ASSISTANT_MODEL). Cloudflare retires models (410), so check its catalog if answers stop. On the free plan
  * Cloudflare answers 429 when the daily allowance is used up, which becomes a 503 for the player, never a bill.
  */
 @Component
@@ -36,7 +37,7 @@ public class WorkersAiModel implements LanguageModelPort {
 
     public WorkersAiModel(@Value("${app.assistant.cloudflare-account-id:${CLOUDFLARE_ACCOUNT_ID:}}") String accountId,
                           @Value("${app.assistant.cloudflare-token:${CLOUDFLARE_AI_TOKEN:}}") String token,
-                          @Value("${app.assistant.model:@cf/meta/llama-3.1-8b-instruct}") String modelName) {
+                          @Value("${app.assistant.model:@cf/meta/llama-3.1-8b-instruct-fp8}") String modelName) {
         this.accountId = accountId.trim();
         this.token = token.trim();
         this.modelName = modelName;
@@ -79,6 +80,12 @@ public class WorkersAiModel implements LanguageModelPort {
     private String text(Reply reply) {
         if (reply.status() == 429) {
             throw new AssistantUnavailableException("The free daily AI allowance is used up", null);
+        }
+        if (reply.status() == 404 || reply.status() == 410) {
+            log.error("Workers AI does not offer the model '{}' (anymore): set app.assistant.model "
+                    + "(APP_ASSISTANT_MODEL) to one from https://developers.cloudflare.com/workers-ai/models/ . {}",
+                    modelName, abbreviate(reply.body()));
+            throw new AssistantUnavailableException("The configured model is not available", null);
         }
         if (reply.status() >= 400) {
             log.warn("Workers AI answered {}: {}", reply.status(), abbreviate(reply.body()));

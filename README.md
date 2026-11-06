@@ -246,7 +246,7 @@ Spring does not read `.env` by itself: `application.yml` imports it with
 | `app.auto-sync.every` | `PT6H` | An account is synced automatically at most this often |
 | `app.auto-sync.check-every` / `first-run-after` | `PT30M` / `PT10M` | How often the scheduler looks for accounts to sync, and the wait after start-up |
 | `app.auto-sync.active-days` / `batch-size` / `pause-ms` | `30` / `20` / `1000` | Only users seen in this many days; accounts per round; pause between accounts |
-| `app.assistant.model` | `@cf/meta/llama-3.1-8b-instruct` | The Workers AI model that writes answers |
+| `app.assistant.model` | `@cf/meta/llama-3.1-8b-instruct-fp8` | The Workers AI model that writes answers (env `APP_ASSISTANT_MODEL`). Cloudflare retires models: if the log says the model is not offered (410), pick another from its catalog |
 | `app.assistant.user-daily-limit` / `global-daily-limit` | `20` / `400` | New answers per user per day, and for everyone together (protects the free daily AI allowance); saved guides are not counted |
 | `app.assistant.max-tokens` | `600` | Longest answer |
 | `app.dev.verify-email-uids` | not set | Development only: enables the one-time e-mail verification for these Firebase UIDs. Remove after use |
@@ -555,7 +555,7 @@ otherwise they see the generated one. Admins can remove a picture (`DELETE /api/
 
 On an achievement, a signed-in player asks **"how do I get this?"** and can then ask follow-up questions about it.
 
-- **Model:** Cloudflare **Workers AI** (default `@cf/meta/llama-3.1-8b-instruct`), called by the backend through
+- **Model:** Cloudflare **Workers AI** (default `@cf/meta/llama-3.1-8b-instruct-fp8`), called by the backend through
   `LanguageModelPort`, so it can be replaced by another provider with one adapter. The free plan gives a daily
   allowance; when it is used up Cloudflare refuses (no bill) and players get `503 assistant_unavailable`.
 - **Knowledge:** when an admin approved a **reference wiki** for the game (a MediaWiki such as Fandom or wiki.gg whose
@@ -809,6 +809,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `404` on a game that exists | It is not published yet (no details). Run **enrich** |
 | Sync answers `422 profile_private` | In Steam: Profile → Edit Profile → Privacy Settings → Game details: **Public** |
 | Link fails with `invalid_identity_proof` | The `state` expired (10 minutes), was issued for another platform, or the callback URL differs from `STEAM_CALLBACK_URL` |
+| Assistant answers `503` and the log says Workers AI answered `410` / model not offered | Cloudflare retired the model: set `APP_ASSISTANT_MODEL` to one from https://developers.cloudflare.com/workers-ai/models/ |
 | Browser calls blocked by CORS | Add the frontend's origin (e.g. `http://localhost:4200`) to `app.cors.allowed-origins` |
 | `Error while fetching public key certificates: Not in GZIP format` | Firebase must use the JDK HTTP transport: `FirebaseConfig` sets `NetHttpTransport` |
 | Port 8080 already in use | An old instance is running: stop it with Ctrl+C |
@@ -861,6 +862,7 @@ are public but not documented by Valve and could change.
 
 ## Changelog
 
+- **fix/assistant-model**: default model `@cf/meta/llama-3.1-8b-instruct-fp8` (the previous one was retired by Cloudflare); clear log when a model is retired.
 - **feat/assistant**: AI achievement guide on Cloudflare Workers AI with licensed reference wikis, saved guides and daily limits (V25, V26).
 - **feat/community**: public profiles (opt-in), shelves, player search, avatars with upload (V22–V24).
 - **feat/auto-sync**: automatic library sync of games played since the last sync (V21); auto-sync setting.
