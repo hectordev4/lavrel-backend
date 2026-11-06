@@ -1,5 +1,9 @@
 package com.lavrel.shared.error;
 
+import com.lavrel.assistant.domain.AchievementNotFoundException;
+import com.lavrel.assistant.domain.AssistantQuotaExceededException;
+import com.lavrel.assistant.domain.AssistantUnavailableException;
+import com.lavrel.assistant.domain.InvalidQuestionException;
 import com.lavrel.catalog.domain.GameNotFoundException;
 import com.lavrel.catalog.domain.GameNotOnPlatformException;
 import com.lavrel.catalog.domain.InvalidComparisonException;
@@ -133,6 +137,28 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidCollectionOrderException.class)
     public ResponseEntity<ApiError> invalidCollectionOrder(InvalidCollectionOrderException e) {
         return error(HttpStatus.BAD_REQUEST, "invalid_collection_order", e.getMessage());
+    }
+
+    @ExceptionHandler(InvalidQuestionException.class)
+    public ResponseEntity<ApiError> invalidQuestion(InvalidQuestionException e) {
+        return error(HttpStatus.BAD_REQUEST, "invalid_question", e.getMessage());
+    }
+
+    @ExceptionHandler(AchievementNotFoundException.class)
+    public ResponseEntity<ApiError> achievementNotFound(AchievementNotFoundException e) {
+        return error(HttpStatus.NOT_FOUND, "achievement_not_found", e.getMessage());
+    }
+
+    @ExceptionHandler(AssistantQuotaExceededException.class)
+    public ResponseEntity<ApiError> assistantQuota(AssistantQuotaExceededException e) {
+        return error(HttpStatus.TOO_MANY_REQUESTS, "assistant_quota_exceeded", e.getMessage());
+    }
+
+    @ExceptionHandler(AssistantUnavailableException.class)
+    public ResponseEntity<ApiError> assistantUnavailable(AssistantUnavailableException e) {
+        log.warn("Assistant unavailable: {}", e.getMessage());
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "assistant_unavailable",
+                "The assistant cannot answer right now. Try again later.");
     }
 
     @ExceptionHandler(InvalidAvatarException.class)
