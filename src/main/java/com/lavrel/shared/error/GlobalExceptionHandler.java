@@ -4,6 +4,7 @@ import com.lavrel.assistant.domain.AchievementNotFoundException;
 import com.lavrel.assistant.domain.AssistantQuotaExceededException;
 import com.lavrel.assistant.domain.AssistantUnavailableException;
 import com.lavrel.assistant.domain.InvalidQuestionException;
+import com.lavrel.assistant.domain.InvalidWikiSourceException;
 import com.lavrel.catalog.domain.GameNotFoundException;
 import com.lavrel.catalog.domain.GameNotOnPlatformException;
 import com.lavrel.catalog.domain.InvalidComparisonException;
@@ -142,6 +143,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidQuestionException.class)
     public ResponseEntity<ApiError> invalidQuestion(InvalidQuestionException e) {
         return error(HttpStatus.BAD_REQUEST, "invalid_question", e.getMessage());
+    }
+
+    @ExceptionHandler(InvalidWikiSourceException.class)
+    public ResponseEntity<ApiError> invalidWikiSource(InvalidWikiSourceException e) {
+        return error(HttpStatus.BAD_REQUEST, "invalid_wiki_source", e.getMessage());
     }
 
     @ExceptionHandler(AchievementNotFoundException.class)

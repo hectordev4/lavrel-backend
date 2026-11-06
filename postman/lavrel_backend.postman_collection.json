@@ -2137,7 +2137,9 @@
             "exec": [
               "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
               "pm.test(\"No personal data without a token\", function () { pm.expect(pm.response.json().unlocked).to.eql(null); });",
-              "console.log(pm.response.json());"
+              "console.log(pm.response.json());",
+              "const firstAchievement = pm.response.json().achievements[0];",
+              "if (firstAchievement) { pm.collectionVariables.set(\"guideAchievementId\", String(firstAchievement.id)); }"
             ]
           }
         }
@@ -3205,6 +3207,323 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "81. Assistant: how do I get this achievement?",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/games/{{trackGameId}}/achievements/{{guideAchievementId}}/guide?spoilers=true&lang=en",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games",
+            "{{trackGameId}}",
+            "achievements",
+            "{{guideAchievementId}}",
+            "guide"
+          ],
+          "query": [
+            {
+              "key": "spoilers",
+              "value": "true"
+            },
+            {
+              "key": "lang",
+              "value": "en"
+            }
+          ]
+        },
+        "description": "Run 54 first (it saves an achievement id of the game in trackGameId). The first time it writes a new guide (counts towards your daily limit) and saves it for everyone; grounded tells whether it came from an approved wiki (see sources). spoilers=true is needed for hidden achievements. lang: two-letter code."
+      },
+      "response": []
+    },
+    {
+      "name": "82. Assistant: the same guide again (saved, free)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"Served from the saved guide\", function () { pm.expect(pm.response.json().saved).to.eql(true); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/games/{{trackGameId}}/achievements/{{guideAchievementId}}/guide?spoilers=true&lang=en",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games",
+            "{{trackGameId}}",
+            "achievements",
+            "{{guideAchievementId}}",
+            "guide"
+          ],
+          "query": [
+            {
+              "key": "spoilers",
+              "value": "true"
+            },
+            {
+              "key": "lang",
+              "value": "en"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "83. Assistant: follow-up question",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/games/{{trackGameId}}/achievements/{{guideAchievementId}}/guide/questions",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games",
+            "{{trackGameId}}",
+            "achievements",
+            "{{guideAchievementId}}",
+            "guide",
+            "questions"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"Is it missable?\",\n  \"spoilers\": true,\n  \"lang\": \"en\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Always a new answer (counts), never saved."
+      },
+      "response": []
+    },
+    {
+      "name": "84. Assistant: my usage today",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/assistant/usage",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "assistant",
+            "usage"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "85. Admin: set the game's reference wiki",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/assistant/wikis/{{trackGameId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "assistant",
+            "wikis",
+            "{{trackGameId}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"apiUrl\": \"https://GAME.fandom.com/api.php\",\n  \"license\": \"CC BY-SA 3.0\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Replace GAME with the game's wiki and CHECK ITS LICENSE first (the footer of a Fandom wiki says it). Forgets the game's saved guides so they are rewritten from the wiki."
+      },
+      "response": []
+    },
+    {
+      "name": "86. Admin: list reference wikis",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/assistant/wikis",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "assistant",
+            "wikis"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "87. Admin: forget a game's saved guides",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/assistant/guides/games/{{trackGameId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "assistant",
+            "guides",
+            "games",
+            "{{trackGameId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "88. Admin: remove the game's reference wiki",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/assistant/wikis/{{trackGameId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "assistant",
+            "wikis",
+            "{{trackGameId}}"
+          ]
+        }
+      },
+      "response": []
     }
   ],
   "auth": {
@@ -3284,6 +3603,10 @@
     },
     {
       "key": "shelfId",
+      "value": ""
+    },
+    {
+      "key": "guideAchievementId",
       "value": ""
     }
   ]
