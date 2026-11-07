@@ -70,7 +70,7 @@ public class ShelfContentJdbcAdapter implements ShelfContentQueryPort {
             return Optional.empty();
         }
         List<GameItem> games = jdbc.query("WITH " + OWNED + """
-                SELECT g.id, g.title, g.cover_image_url
+                SELECT g.id, g.title, g.slug, g.cover_image_url
                 FROM collection c
                 JOIN collection_game cg ON cg.collection_id = c.id
                 JOIN owned o ON o.game_id = cg.game_id
@@ -85,7 +85,7 @@ public class ShelfContentJdbcAdapter implements ShelfContentQueryPort {
     @Override
     public List<GameItem> recentlyPlayed(long userId, int limit) {
         return jdbc.query("WITH " + OWNED + """
-                SELECT g.id, g.title, g.cover_image_url
+                SELECT g.id, g.title, g.slug, g.cover_image_url
                 FROM owned o JOIN game g ON g.id = o.game_id
                 WHERE o.last_played IS NOT NULL
                 ORDER BY o.last_played DESC, g.id
@@ -96,7 +96,7 @@ public class ShelfContentJdbcAdapter implements ShelfContentQueryPort {
     @Override
     public List<GameItem> playing(long userId, int limit) {
         return jdbc.query("""
-                SELECT g.id, g.title, g.cover_image_url
+                SELECT g.id, g.title, g.slug, g.cover_image_url
                 FROM tracked_game t JOIN game g ON g.id = t.game_id AND g.enriched_at IS NOT NULL
                 WHERE t.user_id = :userId AND t.status = 'PLAYING'
                 ORDER BY t.updated_at DESC, g.id
@@ -107,7 +107,7 @@ public class ShelfContentJdbcAdapter implements ShelfContentQueryPort {
     @Override
     public List<GameItem> completed(long userId, int limit) {
         return jdbc.query("WITH " + PROGRESS + """
-                SELECT g.id, g.title, g.cover_image_url
+                SELECT g.id, g.title, g.slug, g.cover_image_url
                 FROM progress p JOIN game g ON g.id = p.game_id
                 WHERE p.total > 0 AND p.unlocked >= p.total
                 ORDER BY p.last_unlock DESC NULLS LAST, g.id
@@ -121,7 +121,7 @@ public class ShelfContentJdbcAdapter implements ShelfContentQueryPort {
             return List.of();
         }
         List<AchievementItem> found = jdbc.query("""
-                SELECT a.id, a.name, a.icon_url, g.id AS game_id, g.title AS game_title, ua.unlocked_at,
+                SELECT a.id, a.name, a.icon_url, g.id AS game_id, g.title AS game_title, g.slug AS game_slug, ua.unlocked_at,
                        CASE WHEN owners.n > 0
                             THEN 100.0 * (SELECT COUNT(*) FROM user_achievement x WHERE x.achievement_id = a.id)
                                  / owners.n END AS global_percent
@@ -138,7 +138,7 @@ public class ShelfContentJdbcAdapter implements ShelfContentQueryPort {
                     Double globalPercent = rs.wasNull() ? null : Math.round(percent * 10.0) / 10.0;
                     Timestamp unlocked = rs.getTimestamp("unlocked_at");
                     return new AchievementItem(rs.getLong("id"), rs.getString("name"), rs.getString("icon_url"),
-                            rs.getLong("game_id"), rs.getString("game_title"), globalPercent,
+                            rs.getLong("game_id"), rs.getString("game_title"), rs.getString("game_slug"), globalPercent,
                             unlocked == null ? null : unlocked.toInstant());
                 });
         Map<Long, AchievementItem> byId = found.stream()
@@ -172,6 +172,6 @@ public class ShelfContentJdbcAdapter implements ShelfContentQueryPort {
     }
 
     private static GameItem game(ResultSet rs, int i) throws SQLException {
-        return new GameItem(rs.getLong("id"), rs.getString("title"), rs.getString("cover_image_url"));
+        return new GameItem(rs.getLong("id"), rs.getString("title"), rs.getString("slug"), rs.getString("cover_image_url"));
     }
 }

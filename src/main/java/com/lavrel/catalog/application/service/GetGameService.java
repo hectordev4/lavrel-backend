@@ -3,6 +3,7 @@ package com.lavrel.catalog.application.service;
 import com.lavrel.catalog.application.port.in.GetGameUseCase;
 import com.lavrel.catalog.application.port.out.GameMetadataRepositoryPort;
 import com.lavrel.catalog.application.port.out.GameRepositoryPort;
+import com.lavrel.catalog.application.port.out.GameSlugPort;
 import com.lavrel.catalog.application.port.out.GameSystemRepositoryPort;
 import com.lavrel.catalog.domain.Game;
 import com.lavrel.catalog.domain.GameFeature;
@@ -11,7 +12,6 @@ import com.lavrel.catalog.domain.GameMetadata.Creator;
 import com.lavrel.catalog.domain.GameMetadata.Feature;
 import com.lavrel.catalog.domain.GameMetadata.FeatureGroup;
 import com.lavrel.catalog.domain.GameNotFoundException;
-import com.lavrel.catalog.domain.Slug;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,12 +27,20 @@ public class GetGameService implements GetGameUseCase {
     private final GameRepositoryPort games;
     private final GameMetadataRepositoryPort metadata;
     private final GameSystemRepositoryPort systems;
+    private final GameSlugPort slugs;
 
     public GetGameService(GameRepositoryPort games, GameMetadataRepositoryPort metadata,
-                          GameSystemRepositoryPort systems) {
+                          GameSystemRepositoryPort systems, GameSlugPort slugs) {
         this.games = games;
         this.metadata = metadata;
         this.systems = systems;
+        this.slugs = slugs;
+    }
+
+    @Override
+    public GameDetails getGameBySlug(String slug) {
+        long gameId = slugs.gameIdOf(slug).orElseThrow(() -> new GameNotFoundException(slug));
+        return getGame(gameId);
     }
 
     /** A game without details has not been checked against the content policy yet: it stays hidden. */
@@ -51,7 +59,8 @@ public class GetGameService implements GetGameUseCase {
                 .count();
 
         String description = game.description() == null || game.description().isBlank() ? null : game.description();
-        return new GameDetails(game.id(), game.title(), Slug.of(game.title()), game.coverImageUrl(), description,
+        return new GameDetails(game.id(), game.title(), slugs.slugOf(gameId).orElse(null), game.coverImageUrl(),
+                description,
                 game.storeUrl(),
                 details.releaseDate(),
                 new GameDetails.Platforms(details.windows(), details.mac(), details.linux()),

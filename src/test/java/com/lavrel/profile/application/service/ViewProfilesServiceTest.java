@@ -66,7 +66,7 @@ class ViewProfilesServiceTest {
         when(settings.find(7L)).thenReturn(Optional.of(ProfileSettings.restore(7L, true,
                 false, false, false, true, AvatarKind.GENERATED, null)));
         when(content.recentlyPlayed(7L, ViewProfilesService.RECENT_GAMES)).thenReturn(List.of(
-                new ViewProfilesUseCase.GameItem(5L, "Hades", null)));
+                new ViewProfilesUseCase.GameItem(5L, "Hades", "hades", null)));
 
         var profile = service.profile(publicId);
 

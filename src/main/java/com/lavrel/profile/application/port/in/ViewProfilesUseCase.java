@@ -51,11 +51,13 @@ public interface ViewProfilesUseCase {
                         List<AchievementItem> achievements, Stats stats) {
     }
 
-    record GameItem(long gameId, String title, String coverImageUrl) {
+    /** slug: the game page address, /games/{slug}. */
+    record GameItem(long gameId, String title, String slug, String coverImageUrl) {
     }
 
     /** globalPercent: share of the game's owners who unlocked it (rarity); null while nobody owns the game. */
     record AchievementItem(long achievementId, String name, String iconUrl, long gameId, String gameTitle,
+                           String gameSlug,
                            Double globalPercent, Instant unlockedAt) {
     }
 

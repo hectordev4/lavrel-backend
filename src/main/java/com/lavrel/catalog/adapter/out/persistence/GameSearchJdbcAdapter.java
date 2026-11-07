@@ -36,7 +36,7 @@ public class GameSearchJdbcAdapter implements GameSearchQueryPort {
     static GameCard card(ResultSet rs, int i) throws SQLException {
         String tags = rs.getString("top_tags");
         String systems = rs.getString("systems");
-        return new GameCard(rs.getLong("id"), rs.getString("title"), rs.getString("cover_image_url"),
+        return new GameCard(rs.getLong("id"), rs.getString("title"), rs.getString("slug"), rs.getString("cover_image_url"),
                 rs.getObject("release_date", LocalDate.class), rs.getBoolean("windows"), rs.getBoolean("mac"),
                 rs.getBoolean("linux"), (Integer) rs.getObject("review_count", Integer.class),
                 (Integer) rs.getObject("review_percent_positive", Integer.class),

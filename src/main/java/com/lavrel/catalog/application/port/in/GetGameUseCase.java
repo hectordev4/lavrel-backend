@@ -11,6 +11,9 @@ public interface GetGameUseCase {
     /** @throws GameNotFoundException if the game does not exist or is not published yet */
     GameDetails getGame(long gameId);
 
+    /** The same, by the slug of the page address (/games/{slug}). @throws GameNotFoundException if unknown */
+    GameDetails getGameBySlug(String slug);
+
     /**
      * What the game page shows (the web adapter maps it to its own response).
      * features holds one boolean per feature the frontend can show or hide; allFeatures lists every Steam
