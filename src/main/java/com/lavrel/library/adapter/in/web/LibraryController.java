@@ -1,7 +1,6 @@
 package com.lavrel.library.adapter.in.web;
 
 import com.lavrel.catalog.application.port.in.SearchGamesUseCase.PlayerMode;
-import com.lavrel.catalog.domain.Slug;
 import com.lavrel.library.application.port.in.GetLibraryUseCase;
 import com.lavrel.library.application.port.in.GetLibraryUseCase.LibraryCard;
 import com.lavrel.library.application.port.in.GetLibraryUseCase.LibraryCriteria;
@@ -73,14 +72,14 @@ public class LibraryController {
     public record LibraryResponse(List<LibraryGameResponse> games, int page, int size, boolean hasMore) {
     }
 
-    /** slug is for the page address (/games/{gameId}-{slug}); trackingStatus is null when not tracked. */
+    /** slug is the page address (/games/{slug}); trackingStatus is null when not tracked. */
     public record LibraryGameResponse(long gameId, String title, String slug, String coverImageUrl,
                                       LocalDate releaseDate, int playtimeMinutes, Instant lastPlayedAt,
                                       List<Platform> ownedOn, int unlocked, int total, String trackingStatus,
                                       boolean pinned) {
 
         static LibraryGameResponse from(LibraryCard c) {
-            return new LibraryGameResponse(c.gameId(), c.title(), Slug.of(c.title()), c.coverImageUrl(),
+            return new LibraryGameResponse(c.gameId(), c.title(), c.slug(), c.coverImageUrl(),
                     c.releaseDate(), c.playtimeMinutes(), c.lastPlayedAt(), c.ownedOn(), c.unlocked(), c.total(),
                     c.trackingStatus(), c.pinned());
         }

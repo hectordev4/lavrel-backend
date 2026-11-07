@@ -24,7 +24,7 @@ final class LibrarySql {
                 WHERE pa.user_id = :userId
                 GROUP BY ag.game_id
             )
-            SELECT g.id, g.title, g.cover_image_url, g.release_date, o.playtime, o.last_played, o.owned_on,
+            SELECT g.id, g.title, g.slug, g.cover_image_url, g.release_date, o.playtime, o.last_played, o.owned_on,
                    ach.total, mine.unlocked, t.status AS tracking_status, t.pin_position
             FROM owned o
             JOIN game g ON g.id = o.game_id

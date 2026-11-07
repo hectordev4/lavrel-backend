@@ -25,7 +25,7 @@ public interface GetTrackedGamesUseCase {
      * What the tracking list shows per game: progress (unlocked of total) and, as a hint, the three easiest
      * achievements the user has not unlocked yet (highest share of owners who unlocked them).
      */
-    record TrackedGameCard(long gameId, String title, String coverImageUrl, LocalDate releaseDate,
+    record TrackedGameCard(long gameId, String title, String slug, String coverImageUrl, LocalDate releaseDate,
                            TrackingStatus status, Integer pinPosition, int unlocked, int total,
                            List<NextAchievement> nextAchievements, Instant addedAt, Instant updatedAt) {
     }

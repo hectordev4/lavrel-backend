@@ -58,7 +58,7 @@ public class SecurityConfig {
                         // Platforms redirect the browser here without our token; the signed state identifies the user.
                         .requestMatchers("/api/platforms/*/callback", "/api/steam/callback").permitAll()
                         // Public catalog: search, filter options, game pages and achievement lists, no login needed.
-                        .requestMatchers(HttpMethod.GET, "/api/games", "/api/games/*", "/api/games/*/achievements",
+                        .requestMatchers(HttpMethod.GET, "/api/games", "/api/games/*", "/api/games/slug/*", "/api/games/*/achievements",
                                 "/api/search", "/api/tags", "/api/creators").permitAll()
                         // Public profiles and player search: only profiles their owner made public.
                         .requestMatchers(HttpMethod.GET, "/api/users", "/api/users/*", "/api/avatars/gallery")

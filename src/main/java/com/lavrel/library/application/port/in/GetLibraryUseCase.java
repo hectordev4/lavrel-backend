@@ -51,7 +51,7 @@ public interface GetLibraryUseCase {
      * One owned game. playtimeMinutes and lastPlayedAt add up all the user's accounts that own it; ownedOn lists
      * those platforms. trackingStatus is null when the game is not in the tracking list.
      */
-    record LibraryCard(long gameId, String title, String coverImageUrl, LocalDate releaseDate, int playtimeMinutes,
+    record LibraryCard(long gameId, String title, String slug, String coverImageUrl, LocalDate releaseDate, int playtimeMinutes,
                        Instant lastPlayedAt, List<Platform> ownedOn, int unlocked, int total, String trackingStatus,
                        boolean pinned) {
     }

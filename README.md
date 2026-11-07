@@ -137,7 +137,7 @@ src/main/java/com/lavrel
 └── devtools/    fake data, one-time e-mail verification
 src/main/resources
 ├── application.yml
-└── db/migration/   V1 … V26
+└── db/migration/   V1 … V29
 ```
 
 ### The Steam import (`catalog/application/service/steam`)
@@ -293,6 +293,9 @@ Flyway is the only source of schema changes. Never edit a migration that has bee
 | V24 | Avatar kind and value on `profile_settings` |
 | V25 | `assistant_guide` (saved guides), `assistant_usage` (daily limits) |
 | V26 | `assistant_wiki` (approved reference wiki per game) |
+| V27 | `profile_settings.show_library_size` (games-owned number on public profiles; off by default) |
+| V28 | `franchise_blocklist` (names marked as "not a franchise"; seeded with EA Play) |
+| V29 | `game.slug`: unique, permanent page addresses (`lavrel_slug()`, filled for existing games, set by a trigger for new ones) |
 
 There is no V8 on purpose (it was superseded by V9 before release). Flyway does not need consecutive numbers.
 Check what is applied with:
@@ -349,7 +352,7 @@ reach the backend. There is no login by username.
 
 | Caller | Can call |
 |---|---|
-| Anyone, no token | `GET /actuator/health`, the link callbacks, and the public catalog: `GET /api/games`, `/api/games/{id}`, `/api/games/{id}/achievements`, `/api/search`, `/api/tags`, `/api/creators`, public profiles (`/api/users`), `/api/avatars/gallery` |
+| Anyone, no token | `GET /actuator/health`, the link callbacks, and the public catalog: `GET /api/games`, `/api/games/{id}`, `/api/games/slug/{slug}`, `/api/games/{id}/achievements`, `/api/search`, `/api/tags`, `/api/creators`, public profiles (`/api/users`), `/api/avatars/gallery` |
 | Signed in, e-mail **not** verified | Only `GET /api/currentuser` (it returns `emailVerified: false`, so the frontend shows "check your inbox") and `DELETE /api/currentuser`. Everything else is `403 email_not_verified` |
 | Signed in and verified | Everything for users |
 | Role `ADMIN` (and verified) | `/api/admin/**` |
@@ -430,6 +433,12 @@ age, **developers, publishers and franchise**, **tags** (top 20 with Steam's wei
 
 Tags, genres and details never change on their own. Only the admin **refresh** re-copies them.
 
+**Franchises.** Steam's franchise field is filled by publishers and often holds the studio's own name ("Team17
+Digital"), a store or subscription brand ("EA Play") or a placeholder ("FRANCHISE"). `FranchiseRules` skips those at
+import: a franchise is rejected when, ignoring case, accents and company endings (Digital, Games, Studios, Inc., Ltd…),
+it equals one of the game's developers or publishers, when it is a placeholder word, or when an admin blocked it. For
+data stored earlier, the admin clean-up shows what the rules reject before removing anything.
+
 ### Safe for work
 
 Every game must pass the content policy before it enters the catalog (`ContentPolicy`, configured under
@@ -476,6 +485,8 @@ a request for each, with a Collection Runner recipe for the long ones.
 | `DELETE /api/admin/users/{publicId}/avatar` | Remove someone's picture (moderation) |
 | `PUT` / `GET` / `DELETE /api/admin/assistant/wikis/{gameId}` | Approve, list or remove a game's reference wiki (`{"apiUrl", "license"}`) |
 | `DELETE /api/admin/assistant/guides/games/{gameId}` | Forget a game's saved guides |
+| `POST /api/admin/catalog/franchises/cleanup?apply=false` | Lists stored franchises the rules reject (studio names, store brands, placeholders); `apply=true` removes those links |
+| `PUT` / `DELETE /api/admin/catalog/franchises/{creatorId}/blocked`, `GET .../franchises/blocked` | Mark a creator as "not a franchise" (removes its links, skipped by future imports), undo, list |
 
 Limits are validated: `limit` 1–200, app ids numeric, at most 500 per request.
 
@@ -531,7 +542,7 @@ same as a user that does not exist) and never appears in the player search.
 | `PLAYING` | Tracked games marked `PLAYING` |
 | `COMPLETED` | Games with every achievement unlocked |
 | `ACHIEVEMENTS` | Up to 12 achievements the user picked from their own unlocks, with rarity |
-| `STATS` | Games owned, achievements unlocked, games completed (the only place the number of games owned appears) |
+| `STATS` | Achievements unlocked and games completed; games owned only with `showLibrarySize` on (the only place that number can appear) |
 
 - **Player search:** `GET /api/users?q=` by name (2+ characters, accent and case insensitive) or an exact public id.
 
@@ -620,6 +631,7 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 | GET | `/api/platforms/{platform}/callback`, `/api/steam/callback` | Where the platform redirects the browser after login |
 | GET | `/api/games` | Full search (see [Search](#search)) |
 | GET | `/api/games/{gameId}` | Game page (published games only; `404` otherwise) |
+| GET | `/api/games/slug/{slug}` | The same game page, by its page address (`/games/{slug}`) |
 | GET | `/api/games/{gameId}/achievements` | Achievement list with worldwide percentages; with a token also your unlocks and your country's percentage |
 | GET | `/api/search?q=` | Type-ahead |
 | GET | `/api/tags?q=` | Tag options |
@@ -642,7 +654,7 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 | PATCH | `/api/currentuser/username` | `{"username": "Héctor K."}`. `204` |
 | PATCH | `/api/currentuser/country` | `{"countryId": 12}`; `null` clears it. `204` |
 | GET / PUT | `/api/currentuser/auto-sync` | `{"enabled": false}`: automatic sync of my accounts (on by default) |
-| GET / PATCH | `/api/currentuser/profile` | Profile settings: `public`, `showCountry`, `showPlatforms`, `showAvatar` (all off by default) |
+| GET / PATCH | `/api/currentuser/profile` | Profile settings: `public`, `showCountry`, `showPlatforms`, `showAvatar`, `showLibrarySize` (all off by default) |
 | GET / POST | `/api/currentuser/profile/shelves` | My shelves; add one `{"type", "title"?, "collectionId"?}` |
 | PATCH / DELETE | `/api/currentuser/profile/shelves/{id}` | New title / remove |
 | PUT | `/api/currentuser/profile/shelves` | `{"shelfIds": [...]}`: new order |
@@ -711,7 +723,7 @@ The catalog and user tools listed in [Admin tools](#admin-tools).
 }
 ```
 
-`slug` is for readable page addresses: the frontend builds `/games/{id}-{slug}`; only the id identifies the game.
+`slug` is the game's page address: the frontend uses `/games/{slug}` (for example `/games/dark-souls-iii`) and loads the game with `GET /api/games/slug/{slug}`. Slugs are unique (a repeated title gets `-2`, `-3`…), given once when the game is created, and never change, so shared links keep working if a title is edited.
 
 ### Errors
 
@@ -723,7 +735,7 @@ Every error is `{"error": "<code>", "message": "<text>"}`. Validation errors add
 | 400 | `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `country_not_found`, `invalid_identity_proof`, `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order`, `invalid_collection_name`, `invalid_collection_order`, `invalid_shelf`, `invalid_avatar`, `invalid_question`, `invalid_wiki_source` |
 | 401 | `unauthorized` (missing or invalid token) |
 | 403 | `email_not_verified`, `forbidden` |
-| 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `collection_not_found`, `profile_not_found`, `shelf_not_found`, `achievement_not_found`, `not_found` |
+| 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `collection_not_found`, `profile_not_found`, `shelf_not_found`, `achievement_not_found`, `creator_not_found`, `not_found` |
 | 409 | `account_already_linked`, `already_verified`, `quick_access_full`, `collection_name_taken`, `collection_limit_reached`, `last_admin`, `shelf_limit_reached` |
 | 422 | `profile_private`, `platform_not_supported`, `game_not_owned` |
 | 429 | `too_many_requests` (with a `Retry-After` header, in seconds), `assistant_quota_exceeded` |
@@ -760,6 +772,8 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 56, 57 | Firebase: send me the verification e-mail; send me a password-reset e-mail |
 | 61 – 63 | Admin: mark a game as on PlayStation; search by system; unmark it |
 | 64, 65 | Automatic sync: read the setting, turn it off or on |
+| 89 | Game page by slug (no token) |
+| 90 – 93 | Admin: franchise clean-up (dry run, apply), block a creator as not a franchise, list blocked |
 | 81 – 84 | Assistant: guide (54 saves the achievement id), the same guide saved, a follow-up, my usage |
 | 85 – 88 | Admin: approve a reference wiki (check its license), list, forget saved guides, remove |
 | 66 – 80 | Profile settings, shelves (stats, recently played, picked achievements), public profile and player search without token, avatar gallery, pick, upload (choose a file in the Body tab), reset; private again |
@@ -800,7 +814,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `Could not resolve placeholder 'X'` at start | Variable missing from `.env`, or the app was not started from the project root |
 | Flyway: `canceling statement due to statement timeout` | A migration tried to alter `flyway_schema_history` while Flyway holds it. Do that by hand, after the first start |
 | Flyway: `Found non-empty schema(s) "public" but no schema history table` | Tables exist from a manual run. Drop them and let Flyway create them |
-| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V26 must be there) |
+| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V29 must be there) |
 | V16 fails (`permission denied` or `function unaccent does not exist`) | Enable `pg_trgm` and `unaccent` in Supabase (Database → Extensions) and restart |
 | `401` with a token that looks valid | The token and the service-account key belong to different Firebase projects. The server log gives the reason |
 | `403 email_not_verified` | The e-mail is not verified, or the token is older than the verification: refresh it (`getIdToken(true)`, or Postman request 1) |
@@ -858,10 +872,12 @@ are public but not documented by Valve and could change.
 | AI knowledge only from wikis whose license allows reuse (or the model's own, flagged) | Scraping and storing other sites' guides is a copyright and terms-of-service problem |
 | The AI has no tools and never sees personal data | It cannot read or change anything; a bad source can at most spoil one answer |
 | Player search on a separate community page, only **opted-in** profiles | Privacy |
-| Readable game URLs: `/games/{id}-{slug}` | Shareable, search-engine friendly; the id decides |
+| Steam franchises are filtered (studio names, brands, placeholders) and admins can block more | Steam's franchise field is publisher-filled and unreliable |
+| Readable game URLs: `/games/{slug}`, unique and permanent | Shareable, search-engine friendly, and no database id in the address |
 
 ## Changelog
 
+- **fix/frontend-feedback**: unique permanent game slugs and `GET /api/games/slug/{slug}` (V29); `showLibrarySize` profile switch (V27); franchise rules at import plus admin clean-up and blocklist (V28).
 - **fix/assistant-model**: default model `@cf/meta/llama-3.1-8b-instruct-fp8` (the previous one was retired by Cloudflare); clear log when a model is retired.
 - **feat/assistant**: AI achievement guide on Cloudflare Workers AI with licensed reference wikis, saved guides and daily limits (V25, V26).
 - **feat/community**: public profiles (opt-in), shelves, player search, avatars with upload (V22–V24).

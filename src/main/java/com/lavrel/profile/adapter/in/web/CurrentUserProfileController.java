@@ -15,7 +15,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * The user's own profile settings. Everything is off by default:
  *  - GET   /api/currentuser/profile
- *  - PATCH /api/currentuser/profile {"public": true, "showCountry": true, "showPlatforms": false, "showAvatar": true}
+ *  - PATCH /api/currentuser/profile {"public": true, "showCountry": true, "showPlatforms": false, "showAvatar": true,
+ *                                   "showLibrarySize": false}
  *    (any subset; missing fields keep their value)
  */
 @RestController
@@ -37,19 +38,22 @@ public class CurrentUserProfileController {
     public SettingsResponse update(@AuthenticationPrincipal AuthenticatedUser user,
                                    @Valid @RequestBody SettingsRequest request) {
         return SettingsResponse.from(profile.update(user.userId(), request.isPublic(), request.showCountry(),
-                request.showPlatforms(), request.showAvatar()));
+                request.showPlatforms(), request.showAvatar(), request.showLibrarySize()));
     }
 
     /** "public" is a Java keyword, hence the accessor name; the JSON field is "public". */
     public record SettingsRequest(@JsonProperty("public") Boolean isPublic,
-                                  Boolean showCountry, Boolean showPlatforms, Boolean showAvatar) {
+                                  Boolean showCountry, Boolean showPlatforms, Boolean showAvatar,
+                                  Boolean showLibrarySize) {
     }
 
     public record SettingsResponse(@JsonProperty("public") boolean isPublic,
-                                   boolean showCountry, boolean showPlatforms, boolean showAvatar) {
+                                   boolean showCountry, boolean showPlatforms, boolean showAvatar,
+                                   boolean showLibrarySize) {
 
         static SettingsResponse from(ProfileSettings s) {
-            return new SettingsResponse(s.profilePublic(), s.showCountry(), s.showPlatforms(), s.showAvatar());
+            return new SettingsResponse(s.profilePublic(), s.showCountry(), s.showPlatforms(), s.showAvatar(),
+                    s.showLibrarySize());
         }
     }
 }

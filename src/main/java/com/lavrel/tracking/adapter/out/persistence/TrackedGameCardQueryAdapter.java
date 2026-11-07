@@ -29,7 +29,7 @@ public class TrackedGameCardQueryAdapter implements TrackedGameCardQueryPort {
     private static final int NEXT_ACHIEVEMENTS = 3;
 
     private static final String CARDS = """
-            SELECT t.game_id, g.title, g.cover_image_url, g.release_date, t.status, t.pin_position,
+            SELECT t.game_id, g.title, g.slug, g.cover_image_url, g.release_date, t.status, t.pin_position,
                    t.added_at, t.updated_at,
                    (SELECT COUNT(*) FROM achievement a WHERE a.game_id = t.game_id) AS total,
                    (SELECT COUNT(*) FROM user_achievement ua JOIN achievement a ON a.id = ua.achievement_id
@@ -127,7 +127,7 @@ public class TrackedGameCardQueryAdapter implements TrackedGameCardQueryPort {
                     .add(new NextAchievement(rs.getLong("id"), rs.getString("name"), rs.getString("icon_url"),
                             rs.getBoolean("hidden"), globalPercent));
         });
-        return cards.stream().map(c -> new TrackedGameCard(c.gameId(), c.title(), c.coverImageUrl(), c.releaseDate(),
+        return cards.stream().map(c -> new TrackedGameCard(c.gameId(), c.title(), c.slug(), c.coverImageUrl(), c.releaseDate(),
                 c.status(), c.pinPosition(), c.unlocked(), c.total(), next.getOrDefault(c.gameId(), List.of()),
                 c.addedAt(), c.updatedAt())).toList();
     }
@@ -135,7 +135,8 @@ public class TrackedGameCardQueryAdapter implements TrackedGameCardQueryPort {
     private static TrackedGameCard row(ResultSet rs, int i) throws SQLException {
         int pin = rs.getInt("pin_position");
         Integer pinPosition = rs.wasNull() ? null : pin;
-        return new TrackedGameCard(rs.getLong("game_id"), rs.getString("title"), rs.getString("cover_image_url"),
+        return new TrackedGameCard(rs.getLong("game_id"), rs.getString("title"), rs.getString("slug"),
+                rs.getString("cover_image_url"),
                 rs.getObject("release_date", LocalDate.class), TrackingStatus.valueOf(rs.getString("status")),
                 pinPosition, rs.getInt("unlocked"), rs.getInt("total"), List.of(),
                 rs.getTimestamp("added_at").toInstant(), rs.getTimestamp("updated_at").toInstant());

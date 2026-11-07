@@ -73,7 +73,7 @@ public interface SearchGamesUseCase {
      * Enough for a result card without opening the game page. topTags: the 3 most applied tags; availableOn: the
      * systems it is sold on.
      */
-    record GameCard(long id, String title, String coverImageUrl, LocalDate releaseDate, boolean windows,
+    record GameCard(long id, String title, String slug, String coverImageUrl, LocalDate releaseDate, boolean windows,
                     boolean mac, boolean linux, Integer reviewCount, Integer reviewPercentPositive,
                     List<String> topTags, boolean singlePlayer, boolean coOp, boolean multiplayer,
                     List<GameSystem> availableOn) {

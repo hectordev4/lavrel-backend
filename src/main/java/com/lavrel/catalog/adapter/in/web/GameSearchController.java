@@ -7,7 +7,6 @@ import com.lavrel.catalog.application.port.in.SearchGamesUseCase.PlayerMode;
 import com.lavrel.catalog.application.port.in.SearchGamesUseCase.Sort;
 import com.lavrel.catalog.application.port.in.SearchGamesUseCase;
 import com.lavrel.catalog.domain.GameSystem;
-import com.lavrel.catalog.domain.Slug;
 import com.lavrel.shared.web.PublicCache;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -79,13 +78,13 @@ public class GameSearchController {
     public record SearchResponse(List<GameCardResponse> games, int page, int size, boolean hasMore) {
     }
 
-    /** slug is for the page address: /games/{id}-{slug}. */
+    /** slug is the page address: /games/{slug}. */
     public record GameCardResponse(long id, String title, String slug, String coverImageUrl, LocalDate releaseDate,
                                    Platforms platforms, Integer reviewCount, Integer reviewPercentPositive,
                                    List<String> topTags, Modes modes, List<GameSystem> availableOn) {
 
         static GameCardResponse from(GameCard g) {
-            return new GameCardResponse(g.id(), g.title(), Slug.of(g.title()), g.coverImageUrl(), g.releaseDate(),
+            return new GameCardResponse(g.id(), g.title(), g.slug(), g.coverImageUrl(), g.releaseDate(),
                     new Platforms(g.windows(), g.mac(), g.linux()), g.reviewCount(), g.reviewPercentPositive(),
                     g.topTags(), new Modes(g.singlePlayer(), g.coOp(), g.multiplayer()), g.availableOn());
         }

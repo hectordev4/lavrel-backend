@@ -1,6 +1,7 @@
 package com.lavrel.catalog.application.service.steam;
 
 import com.lavrel.catalog.application.port.out.AchievementRepositoryPort;
+import com.lavrel.catalog.application.port.out.FranchiseBlocklistPort;
 import com.lavrel.catalog.application.port.out.GameMappingRepositoryPort;
 import com.lavrel.catalog.application.port.out.GameMetadataRepositoryPort;
 import com.lavrel.catalog.application.port.out.GameRepositoryPort;
@@ -33,18 +34,21 @@ class SteamGameWriter {
     private final AchievementRepositoryPort achievements;
     private final GameMetadataRepositoryPort metadata;
     private final GameSystemRepositoryPort systems;
+    private final FranchiseBlocklistPort franchiseBlocklist;
     private final SteamTagNames tagNames;
     private final TransactionTemplate tx;
     private final Clock clock;
 
     SteamGameWriter(GameRepositoryPort games, GameMappingRepositoryPort gameMappings,
                     AchievementRepositoryPort achievements, GameMetadataRepositoryPort metadata,
-                    GameSystemRepositoryPort systems, SteamTagNames tagNames, TransactionTemplate tx, Clock clock) {
+                    GameSystemRepositoryPort systems, FranchiseBlocklistPort franchiseBlocklist,
+                    SteamTagNames tagNames, TransactionTemplate tx, Clock clock) {
         this.games = games;
         this.gameMappings = gameMappings;
         this.achievements = achievements;
         this.metadata = metadata;
         this.systems = systems;
+        this.franchiseBlocklist = franchiseBlocklist;
         this.tagNames = tagNames;
         this.tx = tx;
         this.clock = clock;
@@ -53,7 +57,7 @@ class SteamGameWriter {
     /** Creates a new published game with its Steam mapping, achievements and details. @return the game id */
     Long insert(String appId, PlatformGameInfo info, StoreItem item, List<PlatformAchievement> steamAchievements) {
         Instant now = clock.instant();
-        GameMetadata gameMetadata = GameMetadataAssembler.assemble(info, item);
+        GameMetadata gameMetadata = GameMetadataAssembler.assemble(info, item, franchiseBlocklist.keys());
         tagNames.ensureNames(gameMetadata.tags());
 
         return tx.execute(status -> {
@@ -76,7 +80,7 @@ class SteamGameWriter {
         if (game == null) {
             return;
         }
-        GameMetadata gameMetadata = GameMetadataAssembler.assemble(info, item);
+        GameMetadata gameMetadata = GameMetadataAssembler.assemble(info, item, franchiseBlocklist.keys());
         tagNames.ensureNames(gameMetadata.tags());
         tx.executeWithoutResult(status -> {
             game.refreshFromPlatform(info.title(), info.coverImageUrl(), info.description(), storeUrl(appId));

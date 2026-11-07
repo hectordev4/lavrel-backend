@@ -13,14 +13,15 @@ class ProfileSettingsTest {
         assertThat(s.showCountry()).isFalse();
         assertThat(s.showPlatforms()).isFalse();
         assertThat(s.showAvatar()).isFalse();
+        assertThat(s.showLibrarySize()).isFalse();
     }
 
     @Test
     void partialUpdateKeepsTheRest() {
         ProfileSettings s = ProfileSettings.defaults(1L);
-        assertThat(s.update(true, null, null, null)).isTrue();
+        assertThat(s.update(true, null, null, null, null)).isTrue();
         assertThat(s.profilePublic()).isTrue();
         assertThat(s.showPlatforms()).isFalse();
-        assertThat(s.update(true, null, null, null)).isFalse();
+        assertThat(s.update(true, null, null, null, null)).isFalse();
     }
 }
