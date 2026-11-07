@@ -3710,6 +3710,77 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "94. Home: my totals",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/stats",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "stats"
+          ]
+        },
+        "description": "achievementsUnlocked, averageCompletion (over games with at least one unlock; null if none), perfectGames, gamesOwned. Private, only for you."
+      },
+      "response": []
+    },
+    {
+      "name": "95. Home: my latest unlocks",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/achievements/recent?limit=3",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "achievements",
+            "recent"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "3"
+            }
+          ]
+        },
+        "description": "Newest first, 1 to 20, with the game's slug and rarity."
+      },
+      "response": []
     }
   ],
   "auth": {

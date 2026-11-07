@@ -653,6 +653,8 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 |---|---|---|
 | PATCH | `/api/currentuser/username` | `{"username": "Héctor K."}`. `204` |
 | PATCH | `/api/currentuser/country` | `{"countryId": 12}`; `null` clears it. `204` |
+| GET | `/api/currentuser/stats` | My totals for the home screen: `achievementsUnlocked`, `averageCompletion` (percent, over games with at least one unlock, like Steam; `null` if none), `perfectGames`, `gamesOwned`. Private |
+| GET | `/api/currentuser/achievements/recent?limit=3` | `{"achievements": [...]}`: my latest unlocks (1–20), with game, slug, rarity and `hidden` |
 | GET / PUT | `/api/currentuser/auto-sync` | `{"enabled": false}`: automatic sync of my accounts (on by default) |
 | GET / PATCH | `/api/currentuser/profile` | Profile settings: `public`, `showCountry`, `showPlatforms`, `showAvatar`, `showLibrarySize` (all off by default) |
 | GET / POST | `/api/currentuser/profile/shelves` | My shelves; add one `{"type", "title"?, "collectionId"?}` |
@@ -773,6 +775,7 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 61 – 63 | Admin: mark a game as on PlayStation; search by system; unmark it |
 | 64, 65 | Automatic sync: read the setting, turn it off or on |
 | 89 | Game page by slug (no token) |
+| 94, 95 | Home: my totals, my latest unlocks |
 | 90 – 93 | Admin: franchise clean-up (dry run, apply), block a creator as not a franchise, list blocked |
 | 81 – 84 | Assistant: guide (54 saves the achievement id), the same guide saved, a follow-up, my usage |
 | 85 – 88 | Admin: approve a reference wiki (check its license), list, forget saved guides, remove |
@@ -877,6 +880,7 @@ are public but not documented by Valve and could change.
 
 ## Changelog
 
+- **feat/home**: `GET /api/currentuser/stats` and `GET /api/currentuser/achievements/recent` for the home screen.
 - **fix/frontend-feedback**: unique permanent game slugs and `GET /api/games/slug/{slug}` (V29); `showLibrarySize` profile switch (V27); franchise rules at import plus admin clean-up and blocklist (V28).
 - **fix/assistant-model**: default model `@cf/meta/llama-3.1-8b-instruct-fp8` (the previous one was retired by Cloudflare); clear log when a model is retired.
 - **feat/assistant**: AI achievement guide on Cloudflare Workers AI with licensed reference wikis, saved guides and daily limits (V25, V26).
