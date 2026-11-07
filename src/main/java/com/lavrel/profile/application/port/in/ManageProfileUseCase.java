@@ -9,5 +9,5 @@ public interface ManageProfileUseCase {
 
     /** Partial update: null fields stay as they are. */
     ProfileSettings update(long userId, Boolean profilePublic, Boolean showCountry, Boolean showPlatforms,
-                           Boolean showAvatar);
+                           Boolean showAvatar, Boolean showLibrarySize);
 }

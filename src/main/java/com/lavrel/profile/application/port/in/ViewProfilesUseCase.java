@@ -59,6 +59,11 @@ public interface ViewProfilesUseCase {
                            Double globalPercent, Instant unlockedAt) {
     }
 
-    record Stats(int gamesOwned, int achievementsUnlocked, int gamesCompleted) {
+    /** gamesOwned is null unless the user opted into showing the size of their library (showLibrarySize). */
+    record Stats(Integer gamesOwned, int achievementsUnlocked, int gamesCompleted) {
+
+        public Stats withoutLibrarySize() {
+            return new Stats(null, achievementsUnlocked, gamesCompleted);
+        }
     }
 }
