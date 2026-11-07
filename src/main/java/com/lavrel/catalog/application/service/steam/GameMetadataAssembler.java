@@ -2,30 +2,34 @@ package com.lavrel.catalog.application.service.steam;
 
 import com.lavrel.catalog.application.port.out.PlatformCatalogPort.PlatformGameInfo;
 import com.lavrel.catalog.application.port.out.PlatformCatalogPort.StoreItem;
+import com.lavrel.catalog.domain.FranchiseRules;
 import com.lavrel.catalog.domain.GameFeature;
-import com.lavrel.catalog.domain.GameMetadata;
 import com.lavrel.catalog.domain.GameMetadata.Creator;
 import com.lavrel.catalog.domain.GameMetadata.Feature;
 import com.lavrel.catalog.domain.GameMetadata.FeatureGroup;
 import com.lavrel.catalog.domain.GameMetadata.Genre;
+import com.lavrel.catalog.domain.GameMetadata;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Turns the two kinds of platform data (the cheap store item and the full store page) into the GameMetadata we
  * store. Pure functions with no I/O, so it can be tested on its own; the importer only orchestrates.
- * The store item wins where both have a value, because it is the richer source.
+ * The store item wins where both have a value, because it is the richer source. Steam's franchise field is filtered
+ * with FranchiseRules: studio names, store brands and placeholders are not kept as franchises.
  */
 final class GameMetadataAssembler {
 
     private GameMetadataAssembler() {
     }
 
-    static GameMetadata assemble(PlatformGameInfo info, StoreItem item) {
+    /** blockedFranchises: keys an admin marked as not a franchise (see FranchiseRules). */
+    static GameMetadata assemble(PlatformGameInfo info, StoreItem item, Set<String> blockedFranchises) {
         LocalDate release = null;
         if (item != null && item.releaseEpochSeconds() != null && item.releaseEpochSeconds() > 0) {
             release = Instant.ofEpochSecond(item.releaseEpochSeconds()).atZone(ZoneOffset.UTC).toLocalDate();
@@ -44,7 +48,8 @@ final class GameMetadataAssembler {
                 item == null ? null : item.reviewCount(),
                 item == null ? null : item.reviewPercentPositive(),
                 info.free(), requiredAge, developers, publishers,
-                item == null ? List.of() : item.franchises(),
+                item == null ? List.of()
+                        : FranchiseRules.keepReal(item.franchises(), developers, publishers, blockedFranchises),
                 item == null ? List.of() : item.tags(),
                 info.genres().entrySet().stream().map(e -> new Genre(e.getKey(), e.getValue())).toList(),
                 buildFeatures(info, item), info.ageRatings());
