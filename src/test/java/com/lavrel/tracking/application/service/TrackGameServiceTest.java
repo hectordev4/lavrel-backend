@@ -38,7 +38,7 @@ class TrackGameServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(cards.findCard(1L, 7L)).thenReturn(List.of(new TrackedGameCard(7L, "Game", null, null,
+        when(cards.findCard(1L, 7L)).thenReturn(List.of(new TrackedGameCard(7L, "Game", "game", null, null,
                 TrackingStatus.PLAYING, null, 0, 10, List.of(), NOW, NOW)));
     }
 

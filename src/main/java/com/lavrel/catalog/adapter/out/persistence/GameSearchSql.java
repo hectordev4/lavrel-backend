@@ -20,7 +20,7 @@ final class GameSearchSql {
     static final int RATING_MIN_REVIEWS = 100;
 
     private static final String SELECT = """
-            SELECT g.id, g.title, g.cover_image_url, g.release_date, g.windows, g.mac, g.linux,
+            SELECT g.id, g.title, g.slug, g.cover_image_url, g.release_date, g.windows, g.mac, g.linux,
                    g.review_count, g.review_percent_positive,
                    (SELECT string_agg(t.name, '|' ORDER BY gt.position)
                     FROM game_tag gt JOIN tag t ON t.id = gt.tag_id

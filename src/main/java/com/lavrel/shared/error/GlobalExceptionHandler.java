@@ -5,6 +5,7 @@ import com.lavrel.assistant.domain.AssistantQuotaExceededException;
 import com.lavrel.assistant.domain.AssistantUnavailableException;
 import com.lavrel.assistant.domain.InvalidQuestionException;
 import com.lavrel.assistant.domain.InvalidWikiSourceException;
+import com.lavrel.catalog.domain.CreatorNotFoundException;
 import com.lavrel.catalog.domain.GameNotFoundException;
 import com.lavrel.catalog.domain.GameNotOnPlatformException;
 import com.lavrel.catalog.domain.InvalidComparisonException;
@@ -148,6 +149,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidWikiSourceException.class)
     public ResponseEntity<ApiError> invalidWikiSource(InvalidWikiSourceException e) {
         return error(HttpStatus.BAD_REQUEST, "invalid_wiki_source", e.getMessage());
+    }
+
+    @ExceptionHandler(CreatorNotFoundException.class)
+    public ResponseEntity<ApiError> creatorNotFound(CreatorNotFoundException e) {
+        return error(HttpStatus.NOT_FOUND, "creator_not_found", e.getMessage());
     }
 
     @ExceptionHandler(AchievementNotFoundException.class)

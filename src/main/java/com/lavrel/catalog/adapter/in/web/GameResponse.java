@@ -10,7 +10,7 @@ import java.util.Map;
  * The JSON of GET /api/games/{id}. Kept separate from the use case's read model so the API shape can change
  * without touching the application layer (and the other way round).
  * availableOn: the systems it is sold on (PC, XBOX, PLAYSTATION).
- * slug is the readable part of the page address: the frontend builds /games/{id}-{slug}; only the id matters.
+ * slug is the page address: /games/{slug} (unique, never changes; GET /api/games/slug/{slug} finds the game).
  */
 public record GameResponse(long id, String title, String slug, String coverImageUrl, String description,
                            String storeUrl, LocalDate releaseDate, Platforms platforms, Reviews reviews,

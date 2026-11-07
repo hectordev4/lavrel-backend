@@ -15,30 +15,32 @@ public class ProfileSettings {
     private boolean showCountry;
     private boolean showPlatforms;
     private boolean showAvatar;
+    private boolean showLibrarySize;
     private AvatarKind avatarKind;
     private String avatarValue;
 
     private ProfileSettings(long userId, boolean profilePublic, boolean showCountry, boolean showPlatforms,
-                            boolean showAvatar, AvatarKind avatarKind, String avatarValue) {
+                            boolean showAvatar, boolean showLibrarySize, AvatarKind avatarKind, String avatarValue) {
         this.userId = userId;
         this.profilePublic = profilePublic;
         this.showCountry = showCountry;
         this.showPlatforms = showPlatforms;
         this.showAvatar = showAvatar;
+        this.showLibrarySize = showLibrarySize;
         this.avatarKind = avatarKind == null ? AvatarKind.GENERATED : avatarKind;
         this.avatarValue = avatarValue;
     }
 
     /** Everything private. */
     public static ProfileSettings defaults(long userId) {
-        return new ProfileSettings(userId, false, false, false, false, AvatarKind.GENERATED, null);
+        return new ProfileSettings(userId, false, false, false, false, false, AvatarKind.GENERATED, null);
     }
 
     public static ProfileSettings restore(long userId, boolean profilePublic, boolean showCountry,
-                                          boolean showPlatforms, boolean showAvatar, AvatarKind avatarKind,
-                                          String avatarValue) {
-        return new ProfileSettings(userId, profilePublic, showCountry, showPlatforms, showAvatar, avatarKind,
-                avatarValue);
+                                          boolean showPlatforms, boolean showAvatar, boolean showLibrarySize,
+                                          AvatarKind avatarKind, String avatarValue) {
+        return new ProfileSettings(userId, profilePublic, showCountry, showPlatforms, showAvatar, showLibrarySize,
+                avatarKind, avatarValue);
     }
 
     /** @throws InvalidAvatarException if the id is not in the gallery */
@@ -68,11 +70,13 @@ public class ProfileSettings {
     }
 
     /** Partial update: null keeps the current value. @return true if anything changed */
-    public boolean update(Boolean newPublic, Boolean newShowCountry, Boolean newShowPlatforms, Boolean newShowAvatar) {
+    public boolean update(Boolean newPublic, Boolean newShowCountry, Boolean newShowPlatforms, Boolean newShowAvatar,
+                          Boolean newShowLibrarySize) {
         boolean before = profilePublic;
         boolean country = showCountry;
         boolean platforms = showPlatforms;
         boolean avatar = showAvatar;
+        boolean librarySize = showLibrarySize;
         if (newPublic != null) {
             profilePublic = newPublic;
         }
@@ -85,8 +89,11 @@ public class ProfileSettings {
         if (newShowAvatar != null) {
             showAvatar = newShowAvatar;
         }
+        if (newShowLibrarySize != null) {
+            showLibrarySize = newShowLibrarySize;
+        }
         return before != profilePublic || country != showCountry || platforms != showPlatforms
-                || avatar != showAvatar;
+                || avatar != showAvatar || librarySize != showLibrarySize;
     }
 
     public long userId() {
@@ -109,6 +116,11 @@ public class ProfileSettings {
     /** The chosen or uploaded picture; otherwise others see the generated avatar. */
     public boolean showAvatar() {
         return showAvatar;
+    }
+
+    /** How many games the user owns, on the STATS shelf. Off: the shelf shows the rest without that number. */
+    public boolean showLibrarySize() {
+        return showLibrarySize;
     }
 
     public AvatarKind avatarKind() {

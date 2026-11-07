@@ -1548,7 +1548,9 @@
             "exec": [
               "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
               "pm.test(\"Has games and hasMore\", function () { const j = pm.response.json(); pm.expect(j.games).to.be.an(\"array\"); pm.expect(j.hasMore).to.be.a(\"boolean\"); });",
-              "console.log(pm.response.json());"
+              "console.log(pm.response.json());",
+              "const firstGame = pm.response.json().games[0];",
+              "if (firstGame) { pm.collectionVariables.set(\"gameSlug\", firstGame.slug); }"
             ]
           }
         }
@@ -2670,7 +2672,7 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"public\": true,\n  \"showCountry\": true,\n  \"showPlatforms\": true,\n  \"showAvatar\": true\n}",
+          "raw": "{\n  \"public\": true,\n  \"showCountry\": true,\n  \"showPlatforms\": true,\n  \"showAvatar\": true,\n  \"showLibrarySize\": false\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -3524,6 +3526,190 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "89. Game page by slug (no token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/games/slug/{{gameSlug}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games",
+            "slug",
+            "{{gameSlug}}"
+          ]
+        },
+        "description": "Run 39 first (it saves a slug). The frontend's address is /games/{slug}."
+      },
+      "response": []
+    },
+    {
+      "name": "90. Admin: franchise clean-up, dry run",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/franchises/cleanup?apply=false",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "franchises",
+            "cleanup"
+          ],
+          "query": [
+            {
+              "key": "apply",
+              "value": "false"
+            }
+          ]
+        },
+        "description": "Lists stored franchises the rules reject and why. Nothing is changed."
+      },
+      "response": []
+    },
+    {
+      "name": "91. Admin: franchise clean-up, apply",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/franchises/cleanup?apply=true",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "franchises",
+            "cleanup"
+          ],
+          "query": [
+            {
+              "key": "apply",
+              "value": "true"
+            }
+          ]
+        },
+        "description": "Removes the links listed by 90. Check 90's list first."
+      },
+      "response": []
+    },
+    {
+      "name": "92. Admin: block a creator as not a franchise",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/franchises/{{creatorId}}/blocked",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "franchises",
+            "{{creatorId}}",
+            "blocked"
+          ]
+        },
+        "description": "Set creatorId to an id from GET /api/creators?role=franchise. Removes its franchise links and future imports skip it."
+      },
+      "response": []
+    },
+    {
+      "name": "93. Admin: blocked franchises",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/franchises/blocked",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "franchises",
+            "blocked"
+          ]
+        }
+      },
+      "response": []
     }
   ],
   "auth": {
@@ -3607,6 +3793,14 @@
     },
     {
       "key": "guideAchievementId",
+      "value": ""
+    },
+    {
+      "key": "gameSlug",
+      "value": ""
+    },
+    {
+      "key": "creatorId",
       "value": ""
     }
   ]

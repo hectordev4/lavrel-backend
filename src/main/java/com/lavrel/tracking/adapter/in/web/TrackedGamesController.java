@@ -1,6 +1,5 @@
 package com.lavrel.tracking.adapter.in.web;
 
-import com.lavrel.catalog.domain.Slug;
 import com.lavrel.tracking.application.port.in.GetTrackedGamesUseCase;
 import com.lavrel.tracking.application.port.in.GetTrackedGamesUseCase.NextAchievement;
 import com.lavrel.tracking.application.port.in.GetTrackedGamesUseCase.Sort;
@@ -80,13 +79,13 @@ public class TrackedGamesController {
     public record TrackedGamesResponse(List<CardResponse> games) {
     }
 
-    /** slug is for the page address (/games/{gameId}-{slug}); pinPosition is null when not in quick access. */
+    /** slug is the page address (/games/{slug}); pinPosition is null when not in quick access. */
     public record CardResponse(long gameId, String title, String slug, String coverImageUrl, LocalDate releaseDate,
                                TrackingStatus status, Integer pinPosition, int unlocked, int total,
                                List<NextAchievementResponse> nextAchievements, Instant addedAt, Instant updatedAt) {
 
         static CardResponse from(TrackedGameCard c) {
-            return new CardResponse(c.gameId(), c.title(), Slug.of(c.title()), c.coverImageUrl(), c.releaseDate(),
+            return new CardResponse(c.gameId(), c.title(), c.slug(), c.coverImageUrl(), c.releaseDate(),
                     c.status(), c.pinPosition(), c.unlocked(), c.total(),
                     c.nextAchievements().stream().map(NextAchievementResponse::from).toList(),
                     c.addedAt(), c.updatedAt());

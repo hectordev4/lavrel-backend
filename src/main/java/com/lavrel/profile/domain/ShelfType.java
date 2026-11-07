@@ -15,7 +15,10 @@ public enum ShelfType {
     COMPLETED(true),
     /** Achievements the user picked by hand from their own unlocks. */
     ACHIEVEMENTS(false),
-    /** Games owned, achievements unlocked, games completed. The only place the number of games owned can appear. */
+    /**
+     * Games owned, achievements unlocked, games completed. The only place the number of games owned can appear, and
+     * only with the profile setting showLibrarySize on.
+     */
     STATS(true);
 
     private final boolean onlyOnce;

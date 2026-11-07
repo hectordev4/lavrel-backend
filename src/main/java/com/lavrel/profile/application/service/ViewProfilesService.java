@@ -1,10 +1,12 @@
 package com.lavrel.profile.application.service;
 
 import com.lavrel.profile.application.port.in.ViewProfilesUseCase;
+import com.lavrel.profile.application.port.out.ProfileSettingsRepositoryPort;
 import com.lavrel.profile.application.port.out.PublicProfileQueryPort;
 import com.lavrel.profile.application.port.out.ShelfContentQueryPort;
 import com.lavrel.profile.application.port.out.ShelfRepositoryPort;
 import com.lavrel.profile.domain.ProfileNotFoundException;
+import com.lavrel.profile.domain.ProfileSettings;
 import com.lavrel.profile.domain.Shelf;
 import java.util.List;
 import java.util.Optional;
@@ -25,12 +27,14 @@ public class ViewProfilesService implements ViewProfilesUseCase {
     private final PublicProfileQueryPort profiles;
     private final ShelfRepositoryPort shelves;
     private final ShelfContentQueryPort content;
+    private final ProfileSettingsRepositoryPort settings;
 
     public ViewProfilesService(PublicProfileQueryPort profiles, ShelfRepositoryPort shelves,
-                               ShelfContentQueryPort content) {
+                               ShelfContentQueryPort content, ProfileSettingsRepositoryPort settings) {
         this.profiles = profiles;
         this.shelves = shelves;
         this.content = content;
+        this.settings = settings;
     }
 
     @Override
@@ -43,15 +47,16 @@ public class ViewProfilesService implements ViewProfilesUseCase {
     public PublicProfile profile(long publicId) {
         ProfileHeader header = header(publicId);
         long userId = profiles.findUserId(publicId).orElseThrow(ProfileNotFoundException::new);
+        boolean showLibrarySize = settings.find(userId).map(ProfileSettings::showLibrarySize).orElse(false);
         List<ShelfContent> filled = shelves.findAll(userId).stream()
-                .map(shelf -> fill(userId, shelf))
+                .map(shelf -> fill(userId, shelf, showLibrarySize))
                 .flatMap(Optional::stream)
                 .toList();
         return new PublicProfile(header, filled);
     }
 
     /** Empty for a collection that no longer exists (the shelf goes with it, but not in the same instant). */
-    private Optional<ShelfContent> fill(long userId, Shelf shelf) {
+    private Optional<ShelfContent> fill(long userId, Shelf shelf, boolean showLibrarySize) {
         return switch (shelf.type()) {
             case COLLECTION -> content.collection(userId, shelf.collectionId(), SHELF_GAMES)
                     .map(c -> games(shelf, c.name(), c.games()));
@@ -61,7 +66,8 @@ public class ViewProfilesService implements ViewProfilesUseCase {
             case ACHIEVEMENTS -> Optional.of(new ShelfContent(shelf.publicId(), shelf.type(), shelf.title(), null,
                     List.of(), content.achievements(userId, shelf.achievementIds()), null));
             case STATS -> Optional.of(new ShelfContent(shelf.publicId(), shelf.type(), shelf.title(), null,
-                    List.of(), List.of(), content.stats(userId)));
+                    List.of(), List.of(), showLibrarySize ? content.stats(userId)
+                    : content.stats(userId).withoutLibrarySize()));
         };
     }
 

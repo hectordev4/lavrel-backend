@@ -24,9 +24,9 @@ public class ManageProfileService implements ManageProfileUseCase {
     @Override
     @Transactional
     public ProfileSettings update(long userId, Boolean profilePublic, Boolean showCountry, Boolean showPlatforms,
-                                  Boolean showAvatar) {
+                                  Boolean showAvatar, Boolean showLibrarySize) {
         ProfileSettings current = settings(userId);
-        if (current.update(profilePublic, showCountry, showPlatforms, showAvatar)) {
+        if (current.update(profilePublic, showCountry, showPlatforms, showAvatar, showLibrarySize)) {
             settings.save(current);
         }
         return current;

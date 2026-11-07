@@ -37,7 +37,7 @@ class ManageAvatarServiceTest {
 
     @Test
     void uploadStoresThenSavesThenDeletesTheOldOne() {
-        ProfileSettings s = ProfileSettings.restore(1L, true, false, false, true, AvatarKind.UPLOADED, "old.png");
+        ProfileSettings s = ProfileSettings.restore(1L, true, false, false, true, false, AvatarKind.UPLOADED, "old.png");
         when(settings.find(1L)).thenReturn(Optional.of(s));
         when(images.prepare(PICTURE)).thenReturn(new PreparedAvatar(new byte[] {9}, "image/png", "png"));
         when(storage.publicUrl(anyString())).thenAnswer(i -> "https://cdn/" + i.getArgument(0));
@@ -73,7 +73,7 @@ class ManageAvatarServiceTest {
 
     @Test
     void resetDeletesTheUpload() {
-        ProfileSettings s = ProfileSettings.restore(1L, true, false, false, true, AvatarKind.UPLOADED, "pic.gif");
+        ProfileSettings s = ProfileSettings.restore(1L, true, false, false, true, false, AvatarKind.UPLOADED, "pic.gif");
         when(settings.find(1L)).thenReturn(Optional.of(s));
 
         assertThat(service.reset(1L).kind()).isEqualTo(AvatarKind.GENERATED);

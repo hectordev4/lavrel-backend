@@ -39,7 +39,8 @@ public class LibraryJdbcAdapter implements LibraryQueryPort {
         String ownedOn = rs.getString("owned_on");
         rs.getInt("pin_position");
         boolean pinned = !rs.wasNull();
-        return new LibraryCard(rs.getLong("id"), rs.getString("title"), rs.getString("cover_image_url"),
+        return new LibraryCard(rs.getLong("id"), rs.getString("title"), rs.getString("slug"),
+                rs.getString("cover_image_url"),
                 rs.getObject("release_date", LocalDate.class), rs.getInt("playtime"),
                 lastPlayed == null ? null : lastPlayed.toInstant(),
                 ownedOn == null ? List.of() : Arrays.stream(ownedOn.split("\\|")).map(Platform::valueOf).toList(),
