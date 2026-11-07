@@ -10,7 +10,10 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Same rules as the library and the profile shelves: owned means in a linked account and published. */
+/**
+ * Same rules as the library and the profile shelves: owned means in a linked account and published. The latest
+ * unlocks are read through idx_user_achievement_user_recent (migration V30), so they stay fast on big libraries.
+ */
 @Component
 @Transactional(readOnly = true)
 public class MyProgressJdbcAdapter implements MyProgressQueryPort {
@@ -53,7 +56,7 @@ public class MyProgressJdbcAdapter implements MyProgressQueryPort {
                                 FROM account_game ag JOIN platform_account pa ON pa.id = ag.platform_account_id
                                 WHERE ag.game_id = g.id) owners
             WHERE ua.user_id = :userId
-            ORDER BY ua.unlocked_at DESC NULLS LAST, a.id DESC
+            ORDER BY ua.unlocked_at DESC NULLS LAST, ua.achievement_id DESC
             LIMIT :limit
             """;
 
