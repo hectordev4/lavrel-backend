@@ -43,10 +43,11 @@ service → Connect → Outbound). Add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_A
 for local development, so one can be revoked without breaking the other. Never paste tokens anywhere else. Without
 them the assistant answers `503 assistant_unavailable` and everything else works.
 
-**Avatar uploads (optional):** in Supabase, Storage → **New bucket** `avatars`, marked **Public**. Then add two
+**Avatar uploads and icon copies (optional):** in Supabase, Storage → **New bucket** `avatars` and another
+`achievement-icons`, both marked **Public**. Then add two
 environment variables in Render: `SUPABASE_URL` (Project Settings → API → Project URL) and `SUPABASE_SERVICE_KEY`
 (the `service_role` key on the same page; a secret, never put it in the frontend). Without them everything works except
-uploads, which answer `503 avatar_storage_unavailable`.
+uploads and icon copies, which answer `503`.
 
 **Secret file:** Environment → Secret Files → `firebase-service-account.json`, with the whole content of the local
 `secrets/firebase-service-account.json`. Render places it at `/etc/secrets/firebase-service-account.json`.
@@ -91,4 +92,5 @@ Flyway applies new migrations when the app starts, so a deploy with a new `V…s
 | `Permission denied` on `/etc/secrets/...` | The container runs as a non-root user and cannot read the file; read the key from an environment variable instead (small code change) |
 | Restarts with "Out of memory" | Lower `MaxRAMPercentage` in `JAVA_TOOL_OPTIONS` to 50 |
 | Steam link fails with `invalid_identity_proof` | `STEAM_CALLBACK_URL` must be the Render URL above, not `localhost` |
+| Achievement icons do not load | Steam moved its images: set `APP_STEAM_IMAGE_BASE` in Render to the host Steam's store pages use now, and redeploy |
 | Browser calls blocked by CORS | Add the frontend's origin to `CORS_ALLOWED_ORIGINS` |
