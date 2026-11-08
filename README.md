@@ -137,7 +137,7 @@ src/main/java/com/lavrel
 └── devtools/    fake data, one-time e-mail verification
 src/main/resources
 ├── application.yml
-└── db/migration/   V1 … V30
+└── db/migration/   V1 … V31
 ```
 
 ### The Steam import (`catalog/application/service/steam`)
@@ -249,6 +249,8 @@ Spring does not read `.env` by itself: `application.yml` imports it with
 | `app.assistant.model` | `@cf/meta/llama-3.1-8b-instruct-fp8` | The Workers AI model that writes answers (env `APP_ASSISTANT_MODEL`). Cloudflare retires models: if the log says the model is not offered (410), pick another from its catalog |
 | `app.assistant.user-daily-limit` / `global-daily-limit` | `20` / `400` | New answers per user per day, and for everyone together (protects the free daily AI allowance); saved guides are not counted |
 | `app.assistant.max-tokens` | `600` | Longest answer |
+| `app.steam.image-base` | `https://shared.fastly.steamstatic.com/community_assets/images/apps/` | Host Steam achievement icons are served from (env `APP_STEAM_IMAGE_BASE`); applied to every icon at start-up |
+| `app.catalog.icon-bucket` | `achievement-icons` | Supabase Storage bucket for icons copied into our storage |
 | `app.dev.verify-email-uids` | not set | Development only: enables the one-time e-mail verification for these Firebase UIDs. Remove after use |
 
 ## Database
@@ -297,6 +299,7 @@ Flyway is the only source of schema changes. Never edit a migration that has bee
 | V28 | `franchise_blocklist` (names marked as "not a franchise"; seeded with EA Play) |
 | V29 | `game.slug`: unique, permanent page addresses (`lavrel_slug()`, filled for existing games, set by a trigger for new ones) |
 | V30 | Index for "my latest unlocks" (user, unlock date newest first) |
+| V31 | Achievement icons: `icon_path` (Steam reference), `icon_mirrored`, `app_setting` (Steam image host), trigger that serves every Steam icon from the current host |
 
 There is no V8 on purpose (it was superseded by V9 before release). Flyway does not need consecutive numbers.
 Check what is applied with:
@@ -434,6 +437,14 @@ age, **developers, publishers and franchise**, **tags** (top 20 with Steam's wei
 
 Tags, genres and details never change on their own. Only the admin **refresh** re-copies them.
 
+**Achievement icons.** Steam's API still hands out icon addresses on old hosts (such as `steamcdn-a.akamaihd.net`)
+that stopped answering. Each achievement therefore keeps its Steam reference (`{appId}/{file}.jpg`, column
+`icon_path`), and a database trigger serves every Steam icon from the host in `app.steam.image-base`, applied to all
+icons at each start-up: if Steam moves again, change that setting and restart. For a game whose icons Steam really
+lost or may lose, an admin can **copy them into our storage** (bucket `achievement-icons`): our copy is then served,
+kept through refreshes while the Steam picture is the same, and can be dropped again. Icons are Valve's and the
+publishers' images, so copies are made per game, only where needed.
+
 **Franchises.** Steam's franchise field is filled by publishers and often holds the studio's own name ("Team17
 Digital"), a store or subscription brand ("EA Play") or a placeholder ("FRANCHISE"). `FranchiseRules` skips those at
 import: a franchise is rejected when, ignoring case, accents and company endings (Digital, Games, Studios, Inc., Ltd…),
@@ -486,6 +497,8 @@ a request for each, with a Collection Runner recipe for the long ones.
 | `DELETE /api/admin/users/{publicId}/avatar` | Remove someone's picture (moderation) |
 | `PUT` / `GET` / `DELETE /api/admin/assistant/wikis/{gameId}` | Approve, list or remove a game's reference wiki (`{"apiUrl", "license"}`) |
 | `DELETE /api/admin/assistant/guides/games/{gameId}` | Forget a game's saved guides |
+| `POST /api/admin/catalog/games/{gameId}/icons/refresh` | Read the game's achievement icons from Steam again |
+| `POST` / `DELETE /api/admin/catalog/games/{gameId}/icons/mirror` | Copy the game's icons into our storage and serve them from there (reports any Steam no longer has) / back to Steam, deleting our copies |
 | `POST /api/admin/catalog/franchises/cleanup?apply=false` | Lists stored franchises the rules reject (studio names, store brands, placeholders); `apply=true` removes those links |
 | `PUT` / `DELETE /api/admin/catalog/franchises/{creatorId}/blocked`, `GET .../franchises/blocked` | Mark a creator as "not a franchise" (removes its links, skipped by future imports), undo, list |
 
@@ -743,7 +756,7 @@ Every error is `{"error": "<code>", "message": "<text>"}`. Validation errors add
 | 422 | `profile_private`, `platform_not_supported`, `game_not_owned` |
 | 429 | `too_many_requests` (with a `Retry-After` header, in seconds), `assistant_quota_exceeded` |
 | 502 | `platform_unavailable`, `identity_provider_unavailable` |
-| 503 | `avatar_storage_unavailable`, `assistant_unavailable` |
+| 503 | `avatar_storage_unavailable`, `storage_unavailable`, `assistant_unavailable` |
 
 ## Postman collection
 
@@ -776,6 +789,7 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 61 – 63 | Admin: mark a game as on PlayStation; search by system; unmark it |
 | 64, 65 | Automatic sync: read the setting, turn it off or on |
 | 89 | Game page by slug (no token) |
+| 96 – 98 | Admin: refresh a game's icons from Steam, copy them into our storage, serve them from Steam again |
 | 94, 95 | Home: my totals, my latest unlocks |
 | 90 – 93 | Admin: franchise clean-up (dry run, apply), block a creator as not a franchise, list blocked |
 | 81 – 84 | Assistant: guide (54 saves the achievement id), the same guide saved, a follow-up, my usage |
@@ -818,7 +832,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `Could not resolve placeholder 'X'` at start | Variable missing from `.env`, or the app was not started from the project root |
 | Flyway: `canceling statement due to statement timeout` | A migration tried to alter `flyway_schema_history` while Flyway holds it. Do that by hand, after the first start |
 | Flyway: `Found non-empty schema(s) "public" but no schema history table` | Tables exist from a manual run. Drop them and let Flyway create them |
-| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V30 must be there) |
+| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V31 must be there) |
 | V16 fails (`permission denied` or `function unaccent does not exist`) | Enable `pg_trgm` and `unaccent` in Supabase (Database → Extensions) and restart |
 | `401` with a token that looks valid | The token and the service-account key belong to different Firebase projects. The server log gives the reason |
 | `403 email_not_verified` | The e-mail is not verified, or the token is older than the verification: refresh it (`getIdToken(true)`, or Postman request 1) |
@@ -828,6 +842,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | Sync answers `422 profile_private` | In Steam: Profile → Edit Profile → Privacy Settings → Game details: **Public** |
 | Link fails with `invalid_identity_proof` | The `state` expired (10 minutes), was issued for another platform, or the callback URL differs from `STEAM_CALLBACK_URL` |
 | Assistant answers `503` and the log says Workers AI answered `410` / model not offered | Cloudflare retired the model: set `APP_ASSISTANT_MODEL` to one from https://developers.cloudflare.com/workers-ai/models/ |
+| Achievement icons do not load | Steam moved its images: set `APP_STEAM_IMAGE_BASE` to the host its store pages use now and restart; for one game, refresh its icons (Postman 96) or copy them into our storage (97) |
 | Browser calls blocked by CORS | Add the frontend's origin (e.g. `http://localhost:4200`) to `app.cors.allowed-origins` |
 | `Error while fetching public key certificates: Not in GZIP format` | Firebase must use the JDK HTTP transport: `FirebaseConfig` sets `NetHttpTransport` |
 | Port 8080 already in use | An old instance is running: stop it with Ctrl+C |
@@ -877,10 +892,12 @@ are public but not documented by Valve and could change.
 | The AI has no tools and never sees personal data | It cannot read or change anything; a bad source can at most spoil one answer |
 | Player search on a separate community page, only **opted-in** profiles | Privacy |
 | Steam franchises are filtered (studio names, brands, placeholders) and admins can block more | Steam's franchise field is publisher-filled and unreliable |
+| Icons keep Steam's reference and the host is a setting; copies in our storage only per game, by an admin | Steam moves its image hosts; copying every icon would use storage and is a greyer area than linking |
 | Readable game URLs: `/games/{slug}`, unique and permanent | Shareable, search-engine friendly, and no database id in the address |
 
 ## Changelog
 
+- **fix/achievement-icons**: icons served from a configurable Steam host (references kept per achievement, V31), per-game refresh from Steam, and admin copies into our own storage.
 - **feat/home**: `GET /api/currentuser/stats` and `GET /api/currentuser/achievements/recent` for the home screen, with an index for the latest unlocks (V30).
 - **fix/frontend-feedback**: unique permanent game slugs and `GET /api/games/slug/{slug}` (V29); `showLibrarySize` profile switch (V27); franchise rules at import plus admin clean-up and blocklist (V28).
 - **fix/assistant-model**: default model `@cf/meta/llama-3.1-8b-instruct-fp8` (the previous one was retired by Cloudflare); clear log when a model is retired.

@@ -3781,6 +3781,114 @@
         "description": "Newest first, 1 to 20, with the game's slug and rarity."
       },
       "response": []
+    },
+    {
+      "name": "96. Admin: refresh a game's icons from Steam",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/games/{{trackGameId}}/icons/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "games",
+            "{{trackGameId}}",
+            "icons",
+            "refresh"
+          ]
+        },
+        "description": "Reads the achievement list from Steam again and updates our icons (served from the current Steam host)."
+      },
+      "response": []
+    },
+    {
+      "name": "97. Admin: copy a game's icons into our storage",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/games/{{trackGameId}}/icons/mirror",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "games",
+            "{{trackGameId}}",
+            "icons",
+            "mirror"
+          ]
+        },
+        "description": "Needs the public bucket achievement-icons and SUPABASE_URL / SUPABASE_SERVICE_KEY. missingAchievementIds: icons Steam no longer has anywhere."
+      },
+      "response": []
+    },
+    {
+      "name": "98. Admin: serve a game's icons from Steam again",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/catalog/games/{{trackGameId}}/icons/mirror",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "catalog",
+            "games",
+            "{{trackGameId}}",
+            "icons",
+            "mirror"
+          ]
+        },
+        "description": "Deletes our copies."
+      },
+      "response": []
     }
   ],
   "auth": {
