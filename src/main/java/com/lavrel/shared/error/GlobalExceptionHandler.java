@@ -25,6 +25,7 @@ import com.lavrel.profile.domain.ShelfNotFoundException;
 import com.lavrel.shared.domain.PlatformNotSupportedException;
 import com.lavrel.shared.domain.PlatformUnavailableException;
 import com.lavrel.shared.error.ApiError.FieldProblem;
+import com.lavrel.shared.storage.StorageUnavailableException;
 import com.lavrel.tracking.domain.GameNotTrackedException;
 import com.lavrel.tracking.domain.InvalidQuickAccessOrderException;
 import com.lavrel.tracking.domain.QuickAccessFullException;
@@ -176,6 +177,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidAvatarException.class)
     public ResponseEntity<ApiError> invalidAvatar(InvalidAvatarException e) {
         return error(HttpStatus.BAD_REQUEST, "invalid_avatar", e.getMessage());
+    }
+
+    @ExceptionHandler(StorageUnavailableException.class)
+    public ResponseEntity<ApiError> storageUnavailable(StorageUnavailableException e) {
+        log.warn("File storage unavailable: {}", e.toString());
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "storage_unavailable",
+                "File storage is not configured or did not answer. Try again later.");
     }
 
     @ExceptionHandler(AvatarStorageUnavailableException.class)
