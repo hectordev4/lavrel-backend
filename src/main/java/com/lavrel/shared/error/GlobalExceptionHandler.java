@@ -181,7 +181,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(StorageUnavailableException.class)
     public ResponseEntity<ApiError> storageUnavailable(StorageUnavailableException e) {
-        log.warn("File storage unavailable: {}", e.toString());
+        log.warn("File storage unavailable: {}", e.getMessage());
         return error(HttpStatus.SERVICE_UNAVAILABLE, "storage_unavailable",
                 "File storage is not configured or did not answer. Try again later.");
     }
