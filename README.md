@@ -688,7 +688,7 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 | GET | `/api/currentuser/achievements/recent?limit=3` | `{"achievements": [...]}`: my latest unlocks (1–20), with game, slug, rarity and `hidden` |
 | GET / PUT | `/api/currentuser/auto-sync` | `{"enabled": false}`: automatic sync of my accounts (on by default) |
 | GET / PATCH | `/api/currentuser/profile` | Profile settings: `public`, `showCountry`, `showPlatforms`, `showAvatar`, `showLibrarySize` (all off by default) |
-| GET / POST | `/api/currentuser/profile/shelves` | My shelves; add one `{"type", "title"?, "collectionId"?}` |
+| GET / POST | `/api/currentuser/profile/shelves` | My shelves (an `ACHIEVEMENTS` shelf also returns its picked `achievements` with name, icon, game and rarity); add one `{"type", "title"?, "collectionId"?}` |
 | PATCH / DELETE | `/api/currentuser/profile/shelves/{id}` | New title / remove |
 | PUT | `/api/currentuser/profile/shelves` | `{"shelfIds": [...]}`: new order |
 | PUT | `/api/currentuser/profile/shelves/{id}/achievements` | `{"achievementIds": [...]}`: up to 12 of my unlocks |
@@ -919,7 +919,7 @@ are public but not documented by Valve and could change.
 
 ## Changelog
 
-- **feat/achievement-picker**: games with unlocks and unlocked achievements per game (rarest or newest first) for the achievements shelf.
+- **feat/achievement-picker**: games with unlocks and unlocked achievements per game (rarest or newest first) for the achievements shelf; my achievement shelves return their picked achievements with details.
 - **feat/ai-chat**: open chat about a game with grounded sources, cheerful and more detailed answers, unlimited answers for admins, curated guides (V32).
 - **fix/achievement-icons**: icons served from a configurable Steam host (references kept per achievement, V31), per-game refresh from Steam, and admin copies into our own storage.
 - **feat/home**: `GET /api/currentuser/stats` and `GET /api/currentuser/achievements/recent` for the home screen, with an index for the latest unlocks (V30).

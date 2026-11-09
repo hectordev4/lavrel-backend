@@ -1,5 +1,6 @@
 package com.lavrel.profile.application.port.in;
 
+import com.lavrel.profile.application.port.in.ViewProfilesUseCase.AchievementItem;
 import com.lavrel.profile.domain.InvalidShelfException;
 import com.lavrel.profile.domain.ShelfLimitReachedException;
 import com.lavrel.profile.domain.ShelfNotFoundException;
@@ -32,7 +33,12 @@ public interface ManageShelvesUseCase {
     /** Achievement shelves only; every achievement must be one the user unlocked. Up to 12, in order. */
     ShelfView showAchievements(long userId, UUID shelfId, List<Long> achievementIds);
 
+    /**
+     * achievements: for ACHIEVEMENTS shelves, the picked achievements with name, icon, game and rarity, in the chosen
+     * order (the same items the public profile shows); achievements no longer unlocked (an unlinked account) are left
+     * out there but stay in achievementIds until the shelf is saved again. Empty for other shelves.
+     */
     record ShelfView(UUID id, ShelfType type, String title, int position, UUID collectionId,
-                     List<Long> achievementIds) {
+                     List<Long> achievementIds, List<AchievementItem> achievements) {
     }
 }

@@ -2898,7 +2898,8 @@
             "profile",
             "shelves"
           ]
-        }
+        },
+        "description": "An ACHIEVEMENTS shelf also returns achievements: the picked ones with name, icon, game and rarity (globalPercent), in order."
       },
       "response": []
     },
