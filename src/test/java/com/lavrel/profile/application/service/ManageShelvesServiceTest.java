@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.lavrel.library.application.port.in.ManageCollectionsUseCase;
 import com.lavrel.library.application.port.in.ManageCollectionsUseCase.CollectionView;
 import com.lavrel.profile.application.port.in.ManageShelvesUseCase;
+import com.lavrel.profile.application.port.in.ViewProfilesUseCase.AchievementItem;
 import com.lavrel.profile.application.port.out.ShelfContentQueryPort;
 import com.lavrel.profile.application.port.out.ShelfRepositoryPort;
 import com.lavrel.profile.domain.InvalidShelfException;
@@ -107,5 +108,20 @@ class ManageShelvesServiceTest {
         assertThat(third.position()).isEqualTo(1);
         verify(shelves).saveOrder(List.of(third));
         verify(content, never()).unlockedAmong(anyLong(), any());
+    }
+
+    @Test
+    void myAchievementShelvesComeWithTheirPickedAchievements() {
+        Shelf shelf = Shelf.restore(4L, UUID.randomUUID(), 1L, ShelfType.ACHIEVEMENTS, "Proud", 1, null,
+                List.of(10L, 11L), NOW);
+        when(shelves.findAll(1L)).thenReturn(List.of(shelf, stored(5L, ShelfType.STATS, 2)));
+        when(content.achievements(1L, List.of(10L, 11L))).thenReturn(List.of(
+                new AchievementItem(10L, "Phoenix Rising", "icon", 7L, "Hades", "hades", 2.3, NOW)));
+
+        var views = service.list(1L);
+
+        assertThat(views.get(0).achievements()).extracting(AchievementItem::name).containsExactly("Phoenix Rising");
+        assertThat(views.get(0).achievementIds()).containsExactly(10L, 11L);
+        assertThat(views.get(1).achievements()).isEmpty();
     }
 }

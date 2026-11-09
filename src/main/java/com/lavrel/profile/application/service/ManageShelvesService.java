@@ -3,6 +3,7 @@ package com.lavrel.profile.application.service;
 import com.lavrel.library.application.port.in.ManageCollectionsUseCase;
 import com.lavrel.library.application.port.in.ManageCollectionsUseCase.CollectionView;
 import com.lavrel.profile.application.port.in.ManageShelvesUseCase;
+import com.lavrel.profile.application.port.in.ViewProfilesUseCase.AchievementItem;
 import com.lavrel.profile.application.port.out.ShelfContentQueryPort;
 import com.lavrel.profile.application.port.out.ShelfRepositoryPort;
 import com.lavrel.profile.domain.InvalidShelfException;
@@ -42,7 +43,7 @@ public class ManageShelvesService implements ManageShelvesUseCase {
     @Override
     @Transactional(readOnly = true)
     public List<ShelfView> list(long userId) {
-        return shelves.findAll(userId).stream().map(ManageShelvesService::view).toList();
+        return shelves.findAll(userId).stream().map(this::view).toList();
     }
 
     @Override
@@ -115,7 +116,7 @@ public class ManageShelvesService implements ManageShelvesUseCase {
             }
         }
         shelves.saveOrder(moved);
-        return ordered.stream().map(ManageShelvesService::view).toList();
+        return ordered.stream().map(this::view).toList();
     }
 
     @Override
@@ -134,7 +135,11 @@ public class ManageShelvesService implements ManageShelvesUseCase {
         return shelves.find(userId, shelfId).orElseThrow(ShelfNotFoundException::new);
     }
 
-    private static ShelfView view(Shelf s) {
-        return new ShelfView(s.publicId(), s.type(), s.title(), s.position(), s.collectionId(), s.achievementIds());
+    private ShelfView view(Shelf s) {
+        List<AchievementItem> picked = s.type() == ShelfType.ACHIEVEMENTS && !s.achievementIds().isEmpty()
+                ? content.achievements(s.userId(), s.achievementIds())
+                : List.of();
+        return new ShelfView(s.publicId(), s.type(), s.title(), s.position(), s.collectionId(), s.achievementIds(),
+                picked);
     }
 }
