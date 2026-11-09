@@ -25,22 +25,23 @@ public class GuideJdbcAdapter implements GuideRepositoryPort {
     @Override
     public Optional<Guide> find(long achievementId, String language) {
         return jdbc.query("""
-                        SELECT achievement_id, language, text, grounded, sources, model, created_at
+                        SELECT achievement_id, language, text, grounded, sources, model, created_at, curated
                         FROM assistant_guide WHERE achievement_id = :id AND language = :language
                         """, new MapSqlParameterSource().addValue("id", achievementId).addValue("language", language),
                 (rs, i) -> new Guide(rs.getLong("achievement_id"), rs.getString("language"), rs.getString("text"),
                         rs.getBoolean("grounded"), readSources(rs.getString("sources")), rs.getString("model"),
-                        rs.getTimestamp("created_at").toInstant())).stream().findFirst();
+                        rs.getTimestamp("created_at").toInstant(), rs.getBoolean("curated"))).stream().findFirst();
     }
 
     @Override
     public void save(Guide g) {
         jdbc.update("""
-                INSERT INTO assistant_guide (achievement_id, language, text, grounded, sources, model, created_at)
-                VALUES (:id, :language, :text, :grounded, :sources, :model, :createdAt)
+                INSERT INTO assistant_guide (achievement_id, language, text, grounded, sources, model, created_at,
+                                             curated)
+                VALUES (:id, :language, :text, :grounded, :sources, :model, :createdAt, :curated)
                 ON CONFLICT (achievement_id, language) DO UPDATE
                 SET text = EXCLUDED.text, grounded = EXCLUDED.grounded, sources = EXCLUDED.sources,
-                    model = EXCLUDED.model, created_at = EXCLUDED.created_at
+                    model = EXCLUDED.model, created_at = EXCLUDED.created_at, curated = EXCLUDED.curated
                 """, new MapSqlParameterSource()
                 .addValue("id", g.achievementId())
                 .addValue("language", g.language())
@@ -48,7 +49,8 @@ public class GuideJdbcAdapter implements GuideRepositoryPort {
                 .addValue("grounded", g.grounded())
                 .addValue("sources", mapper.writeValueAsString(g.sources()))
                 .addValue("model", g.model())
-                .addValue("createdAt", Timestamp.from(g.createdAt())));
+                .addValue("createdAt", Timestamp.from(g.createdAt()))
+                .addValue("curated", g.curated()));
     }
 
     @Override

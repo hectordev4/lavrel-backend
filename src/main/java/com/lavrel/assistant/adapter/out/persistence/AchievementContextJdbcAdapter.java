@@ -17,6 +17,25 @@ public class AchievementContextJdbcAdapter implements AchievementContextPort {
     }
 
     @Override
+    public Optional<AchievementContext> findById(long achievementId) {
+        return jdbc.query("""
+                        SELECT g.id AS game_id, g.title, a.id, a.name, a.description, a.hidden
+                        FROM achievement a
+                        JOIN game g ON g.id = a.game_id AND g.enriched_at IS NOT NULL
+                        WHERE a.id = :achievementId
+                        """, new MapSqlParameterSource("achievementId", achievementId),
+                (rs, i) -> new AchievementContext(rs.getLong("game_id"), rs.getString("title"), rs.getLong("id"),
+                        rs.getString("name"), rs.getString("description"), rs.getBoolean("hidden")))
+                .stream().findFirst();
+    }
+
+    @Override
+    public Optional<String> publishedGameTitle(long gameId) {
+        return jdbc.queryForList("SELECT title FROM game WHERE id = :id AND enriched_at IS NOT NULL",
+                new MapSqlParameterSource("id", gameId), String.class).stream().findFirst();
+    }
+
+    @Override
     public Optional<AchievementContext> find(long gameId, long achievementId) {
         return jdbc.query("""
                         SELECT g.id AS game_id, g.title, a.id, a.name, a.description, a.hidden

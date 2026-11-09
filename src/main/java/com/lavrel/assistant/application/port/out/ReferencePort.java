@@ -11,4 +11,7 @@ import java.util.List;
 public interface ReferencePort {
 
     List<Excerpt> find(AchievementContext achievement);
+
+    /** Reference text for a free question about a game (its approved wiki, searched with the question). */
+    List<Excerpt> findForGame(long gameId, String question);
 }
