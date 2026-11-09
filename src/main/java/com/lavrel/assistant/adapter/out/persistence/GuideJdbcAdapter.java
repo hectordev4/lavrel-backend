@@ -54,6 +54,12 @@ public class GuideJdbcAdapter implements GuideRepositoryPort {
     }
 
     @Override
+    public boolean delete(long achievementId, String language) {
+        return jdbc.update("DELETE FROM assistant_guide WHERE achievement_id = :id AND language = :language",
+                new MapSqlParameterSource().addValue("id", achievementId).addValue("language", language)) > 0;
+    }
+
+    @Override
     public int deleteByGame(long gameId) {
         return jdbc.update("""
                 DELETE FROM assistant_guide
