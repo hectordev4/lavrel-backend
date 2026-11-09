@@ -4122,6 +4122,94 @@
         "description": "The next request writes a new one (from the wiki if the game has one)."
       },
       "response": []
+    },
+    {
+      "name": "104. Achievement picker: games with my unlocks",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "const games = pm.response.json().games;",
+              "if (games.length > 0) { pm.collectionVariables.set(\"pickerGameId\", String(games[0].gameId)); }",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/achievements/games?sort=recent&size=24",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "achievements",
+            "games"
+          ],
+          "query": [
+            {
+              "key": "sort",
+              "value": "recent"
+            },
+            {
+              "key": "size",
+              "value": "24"
+            }
+          ]
+        },
+        "description": "Step 1 of the picker for the ACHIEVEMENTS shelf. q filters by name; sort recent (last unlock first) or name."
+      },
+      "response": []
+    },
+    {
+      "name": "105. Achievement picker: my unlocks in that game",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "const first = pm.response.json().achievements[0];",
+              "if (first) { pm.collectionVariables.set(\"showcaseAchievementId\", String(first.achievementId)); }",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/games/{{pickerGameId}}/achievements/unlocked?sort=rarity",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "games",
+            "{{pickerGameId}}",
+            "achievements",
+            "unlocked"
+          ],
+          "query": [
+            {
+              "key": "sort",
+              "value": "rarity"
+            }
+          ]
+        },
+        "description": "Step 2: rarest first (sort=date: newest first). Saves the first id as showcaseAchievementId for request 71."
+      },
+      "response": []
     }
   ],
   "auth": {
@@ -4213,6 +4301,10 @@
     },
     {
       "key": "creatorId",
+      "value": ""
+    },
+    {
+      "key": "pickerGameId",
       "value": ""
     }
   ]
