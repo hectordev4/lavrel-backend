@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 /**
  * Supabase Storage through its REST API, shared by every feature that keeps files (avatars, achievement icons). The
@@ -36,7 +37,8 @@ public class SupabaseStorage {
     /** Creates or replaces the file. @throws StorageUnavailableException if not configured or refused */
     public void store(String bucket, String path, byte[] bytes, String contentType) {
         if (!configured()) {
-            throw new StorageUnavailableException("File storage is not configured", null);
+            throw new StorageUnavailableException(
+                    "File storage is not configured (SUPABASE_URL / SUPABASE_SERVICE_KEY missing)", null);
         }
         try {
             http.post().uri(baseUrl + "/storage/v1/object/" + bucket + "/" + path)
@@ -48,8 +50,12 @@ public class SupabaseStorage {
                     .body(bytes)
                     .retrieve()
                     .toBodilessEntity();
+        } catch (RestClientResponseException e) {
+            throw new StorageUnavailableException("File storage refused " + bucket + "/" + path + " (HTTP "
+                    + e.getStatusCode().value() + ": " + abbreviate(e.getResponseBodyAsString()) + ")", e);
         } catch (RestClientException e) {
-            throw new StorageUnavailableException("File storage did not accept the file", e);
+            throw new StorageUnavailableException("File storage did not answer for " + bucket + "/" + path + " ("
+                    + e.getMessage() + ")", e);
         }
     }
 
@@ -67,6 +73,13 @@ public class SupabaseStorage {
         } catch (RestClientException e) {
             log.warn("Could not delete {}/{}: {}", bucket, path, e.toString());
         }
+    }
+
+    private static String abbreviate(String body) {
+        if (body == null || body.isBlank()) {
+            return "no details";
+        }
+        return body.length() > 300 ? body.substring(0, 300) + "…" : body;
     }
 
     public String publicUrl(String bucket, String path) {

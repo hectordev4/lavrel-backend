@@ -137,7 +137,7 @@ src/main/java/com/lavrel
 └── devtools/    fake data, one-time e-mail verification
 src/main/resources
 ├── application.yml
-└── db/migration/   V1 … V31
+└── db/migration/   V1 … V32
 ```
 
 ### The Steam import (`catalog/application/service/steam`)
@@ -248,7 +248,8 @@ Spring does not read `.env` by itself: `application.yml` imports it with
 | `app.auto-sync.active-days` / `batch-size` / `pause-ms` | `30` / `20` / `1000` | Only users seen in this many days; accounts per round; pause between accounts |
 | `app.assistant.model` | `@cf/meta/llama-3.1-8b-instruct-fp8` | The Workers AI model that writes answers (env `APP_ASSISTANT_MODEL`). Cloudflare retires models: if the log says the model is not offered (410), pick another from its catalog |
 | `app.assistant.user-daily-limit` / `global-daily-limit` | `20` / `400` | New answers per user per day, and for everyone together (protects the free daily AI allowance); saved guides are not counted |
-| `app.assistant.max-tokens` | `600` | Longest answer |
+| `app.assistant.max-tokens` | `900` | Longest answer |
+| `app.assistant.curated-max-tokens` | `1500` | Longest guide when an admin has one rewritten |
 | `app.steam.image-base` | `https://shared.fastly.steamstatic.com/community_assets/images/apps/` | Host Steam achievement icons are served from (env `APP_STEAM_IMAGE_BASE`); applied to every icon at start-up |
 | `app.catalog.icon-bucket` | `achievement-icons` | Supabase Storage bucket for icons copied into our storage |
 | `app.dev.verify-email-uids` | not set | Development only: enables the one-time e-mail verification for these Firebase UIDs. Remove after use |
@@ -299,6 +300,7 @@ Flyway is the only source of schema changes. Never edit a migration that has bee
 | V28 | `franchise_blocklist` (names marked as "not a franchise"; seeded with EA Play) |
 | V29 | `game.slug`: unique, permanent page addresses (`lavrel_slug()`, filled for existing games, set by a trigger for new ones) |
 | V30 | Index for "my latest unlocks" (user, unlock date newest first) |
+| V32 | `assistant_guide.curated` (guides an admin wrote or had rewritten; never expire) |
 | V31 | Achievement icons: `icon_path` (Steam reference), `icon_mirrored`, `app_setting` (Steam image host), trigger that serves every Steam icon from the current host |
 
 There is no V8 on purpose (it was superseded by V9 before release). Flyway does not need consecutive numbers.
@@ -497,6 +499,8 @@ a request for each, with a Collection Runner recipe for the long ones.
 | `DELETE /api/admin/users/{publicId}/avatar` | Remove someone's picture (moderation) |
 | `PUT` / `GET` / `DELETE /api/admin/assistant/wikis/{gameId}` | Approve, list or remove a game's reference wiki (`{"apiUrl", "license"}`) |
 | `DELETE /api/admin/assistant/guides/games/{gameId}` | Forget a game's saved guides |
+| `POST /api/admin/assistant/guides/achievements/{achievementId}/rewrite` | `{"lang", "instructions"}`: rewrite the guide with your instructions, saved as curated |
+| `PUT` / `DELETE /api/admin/assistant/guides/achievements/{achievementId}` | `{"lang", "text"}`: save your own text as the curated guide / forget the guide (`?lang=`) |
 | `POST /api/admin/catalog/games/{gameId}/icons/refresh` | Read the game's achievement icons from Steam again |
 | `POST` / `DELETE /api/admin/catalog/games/{gameId}/icons/mirror` | Copy the game's icons into our storage and serve them from there (reports any Steam no longer has) / back to Steam, deleting our copies |
 | `POST /api/admin/catalog/franchises/cleanup?apply=false` | Lists stored franchises the rules reject (studio names, store brands, placeholders); `apply=true` removes those links |
@@ -578,7 +582,8 @@ otherwise they see the generated one. Admins can remove a picture (`DELETE /api/
 
 ## AI achievement guide
 
-On an achievement, a signed-in player asks **"how do I get this?"** and can then ask follow-up questions about it.
+On an achievement, a signed-in player asks **"how do I get this?"** and can then ask follow-up questions about it. In
+the AI tab, the player can also **chat freely about a game** (`POST /api/games/{gameId}/chat`).
 
 - **Model:** Cloudflare **Workers AI** (default `@cf/meta/llama-3.1-8b-instruct-fp8`), called by the backend through
   `LanguageModelPort`, so it can be replaced by another provider with one adapter. The free plan gives a daily
@@ -590,8 +595,18 @@ On an achievement, a signed-in player asks **"how do I get this?"** and can then
   inaccurate. Wiki text is read live and never stored; only the answer and the links are.
 - **Saved guides:** the first answer for an achievement (per language) is saved and reused for everyone: grounded ones
   for 30 days, others for 7. They never contain anything about the player. Follow-ups are never saved.
+- **Open chat:** the frontend keeps the conversation and sends it with each question (the last 12 messages are used);
+  the backend stores nothing of it. The game's approved wiki is searched with the question, so chat answers are
+  grounded and list their sources too. The model avoids story twists and hidden achievements unless asked.
+- **Tone and detail:** cheerful and encouraging, specific (places, items, requirements, order of steps), up to about
+  350 words. Answers do not end with a question: the frontend adds "Is there anything else I can help with?".
+- **Sources:** every grounded answer has `sources`: `[{"title", "url", "license"}]`, to show as links.
 - **Limits:** 20 new answers per player per day and 400 for everybody (saved guides are free), checked atomically in
-  the database, on top of the general rate limiting.
+  the database, on top of the general rate limiting. **Admins are not limited** (`unlimited: true` in the usage
+  answer), so they can refine guides; Cloudflare's own free daily allowance still applies to everyone.
+- **Curated guides:** an admin can have a guide rewritten with instructions ("more detail on the second phase") or
+  save their own text. Curated guides (`curated: true`) are served to everyone, never expire and are never replaced
+  automatically; forgetting one lets the assistant write a new one.
 - **Spoilers:** for hidden achievements nothing is generated until the player sends `spoilers=true`
   (status `SPOILER_CONSENT_REQUIRED`).
 - **Safety:** the model has **no tools**: it only receives text and returns text, so it cannot read or change
@@ -677,7 +692,8 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 | PUT | `/api/currentuser/profile/shelves/{id}/achievements` | `{"achievementIds": [...]}`: up to 12 of my unlocks |
 | GET | `/api/games/{gameId}/achievements/{achievementId}/guide?spoilers=&lang=` | The AI guide: saved (free) or new (counts) |
 | POST | `/api/games/{gameId}/achievements/{achievementId}/guide/questions` | `{"question", "spoilers", "lang"}`: a follow-up (counts, not saved) |
-| GET | `/api/currentuser/assistant/usage` | `{"usedToday", "dailyLimit"}` |
+| POST | `/api/games/{gameId}/chat` | `{"messages": [{"role": "user"\|"assistant", "content"}], "lang"}`: the open chat about a game (counts, nothing stored) |
+| GET | `/api/currentuser/assistant/usage` | `{"usedToday", "dailyLimit", "unlimited"}` (`dailyLimit` is `null` for admins) |
 | GET / PUT / DELETE | `/api/currentuser/profile/avatar` | My avatar / upload a picture (raw image body) / back to generated |
 | PUT | `/api/currentuser/profile/avatar/gallery` | `{"galleryId": "gallery-07"}` |
 | GET | `/api/countries` | `{"countries": [...]}`: about 240 countries |
@@ -789,6 +805,8 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 61 – 63 | Admin: mark a game as on PlayStation; search by system; unmark it |
 | 64, 65 | Automatic sync: read the setting, turn it off or on |
 | 89 | Game page by slug (no token) |
+| 99, 100 | AI chat about a game: first question, then a follow-up with the conversation |
+| 101 – 103 | Admin: rewrite a guide with instructions, save your own text, forget it |
 | 96 – 98 | Admin: refresh a game's icons from Steam, copy them into our storage, serve them from Steam again |
 | 94, 95 | Home: my totals, my latest unlocks |
 | 90 – 93 | Admin: franchise clean-up (dry run, apply), block a creator as not a franchise, list blocked |
@@ -832,7 +850,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `Could not resolve placeholder 'X'` at start | Variable missing from `.env`, or the app was not started from the project root |
 | Flyway: `canceling statement due to statement timeout` | A migration tried to alter `flyway_schema_history` while Flyway holds it. Do that by hand, after the first start |
 | Flyway: `Found non-empty schema(s) "public" but no schema history table` | Tables exist from a manual run. Drop them and let Flyway create them |
-| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V31 must be there) |
+| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V32 must be there) |
 | V16 fails (`permission denied` or `function unaccent does not exist`) | Enable `pg_trgm` and `unaccent` in Supabase (Database → Extensions) and restart |
 | `401` with a token that looks valid | The token and the service-account key belong to different Firebase projects. The server log gives the reason |
 | `403 email_not_verified` | The e-mail is not verified, or the token is older than the verification: refresh it (`getIdToken(true)`, or Postman request 1) |
@@ -841,6 +859,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `404` on a game that exists | It is not published yet (no details). Run **enrich** |
 | Sync answers `422 profile_private` | In Steam: Profile → Edit Profile → Privacy Settings → Game details: **Public** |
 | Link fails with `invalid_identity_proof` | The `state` expired (10 minutes), was issued for another platform, or the callback URL differs from `STEAM_CALLBACK_URL` |
+| AI answers stay general | Approve the game's wiki (85) so answers are grounded; admins can rewrite a guide with instructions (101); a bigger model (`APP_ASSISTANT_MODEL`, e.g. a 24B–26B instruct model from the catalog) gives more detail but uses the free allowance faster |
 | Assistant answers `503` and the log says Workers AI answered `410` / model not offered | Cloudflare retired the model: set `APP_ASSISTANT_MODEL` to one from https://developers.cloudflare.com/workers-ai/models/ |
 | Achievement icons do not load | Steam moved its images: set `APP_STEAM_IMAGE_BASE` to the host its store pages use now and restart; for one game, refresh its icons (Postman 96) or copy them into our storage (97) |
 | Browser calls blocked by CORS | Add the frontend's origin (e.g. `http://localhost:4200`) to `app.cors.allowed-origins` |
@@ -897,6 +916,7 @@ are public but not documented by Valve and could change.
 
 ## Changelog
 
+- **feat/ai-chat**: open chat about a game with grounded sources, cheerful and more detailed answers, unlimited answers for admins, curated guides (V32).
 - **fix/achievement-icons**: icons served from a configurable Steam host (references kept per achievement, V31), per-game refresh from Steam, and admin copies into our own storage.
 - **feat/home**: `GET /api/currentuser/stats` and `GET /api/currentuser/achievements/recent` for the home screen, with an index for the latest unlocks (V30).
 - **fix/frontend-feedback**: unique permanent game slugs and `GET /api/games/slug/{slug}` (V29); `showLibrarySize` profile switch (V27); franchise rules at import plus admin clean-up and blocklist (V28).

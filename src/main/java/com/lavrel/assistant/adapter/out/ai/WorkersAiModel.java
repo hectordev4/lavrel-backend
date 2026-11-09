@@ -2,9 +2,11 @@ package com.lavrel.assistant.adapter.out.ai;
 
 import com.lavrel.assistant.application.port.out.LanguageModelPort;
 import com.lavrel.assistant.domain.AssistantUnavailableException;
+import com.lavrel.assistant.domain.ChatMessage;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -53,7 +55,7 @@ public class WorkersAiModel implements LanguageModelPort {
     }
 
     @Override
-    public String complete(String system, String user, int maxTokens) {
+    public String chat(String system, List<ChatMessage> messages, int maxTokens) {
         if (accountId.isEmpty() || token.isEmpty()) {
             throw new AssistantUnavailableException("The assistant is not configured", null);
         }
@@ -61,8 +63,7 @@ public class WorkersAiModel implements LanguageModelPort {
                 "model", modelName,
                 "max_tokens", maxTokens,
                 "temperature", 0.3,
-                "messages", List.of(Map.of("role", "system", "content", system),
-                        Map.of("role", "user", "content", user)));
+                "messages", messages(system, messages));
         try {
             Reply reply = http.post()
                     .uri("https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/chat/completions", accountId)
@@ -75,6 +76,15 @@ public class WorkersAiModel implements LanguageModelPort {
         } catch (RestClientException e) {
             throw new AssistantUnavailableException("The model did not answer", e);
         }
+    }
+
+    private static List<Map<String, String>> messages(String system, List<ChatMessage> conversation) {
+        List<Map<String, String>> all = new ArrayList<>();
+        all.add(Map.of("role", "system", "content", system));
+        for (ChatMessage m : conversation) {
+            all.add(Map.of("role", m.role() == ChatMessage.Role.USER ? "user" : "assistant", "content", m.content()));
+        }
+        return all;
     }
 
     private String text(Reply reply) {
