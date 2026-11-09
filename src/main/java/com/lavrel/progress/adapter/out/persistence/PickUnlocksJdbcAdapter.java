@@ -12,7 +12,10 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Only fixed SQL fragments are concatenated (sort orders); every user value is a bind parameter. */
+/**
+ * Only fixed SQL fragments are inserted (the sort orders, in place of ORDER_BY); every user value is a bind
+ * parameter. Not String.format: the SQL contains '%' for LIKE, which format would read as a placeholder.
+ */
 @Component
 @Transactional(readOnly = true)
 public class PickUnlocksJdbcAdapter implements PickUnlocksQueryPort {
@@ -28,7 +31,7 @@ public class PickUnlocksJdbcAdapter implements PickUnlocksQueryPort {
             WHERE ua.user_id = :userId
               AND (CAST(:q AS text) IS NULL OR g.search_name LIKE '%' || lavrel_normalize(:q) || '%')
             GROUP BY g.id, g.title, g.slug, g.cover_image_url, g.search_name
-            ORDER BY %s
+            ORDER BY ORDER_BY
             LIMIT :limit OFFSET :offset
             """;
 
@@ -44,7 +47,7 @@ public class PickUnlocksJdbcAdapter implements PickUnlocksQueryPort {
                         FROM account_game ag JOIN platform_account pa ON pa.id = ag.platform_account_id
                         WHERE ag.game_id = :gameId) owners
             WHERE ua.user_id = :userId AND a.game_id = :gameId
-            ORDER BY %s
+            ORDER BY ORDER_BY
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -53,10 +56,20 @@ public class PickUnlocksJdbcAdapter implements PickUnlocksQueryPort {
         this.jdbc = jdbc;
     }
 
+    static String gamesSql(GameSort sort) {
+        return GAMES.replace("ORDER_BY", sort == GameSort.NAME ? "g.search_name, g.id"
+                : "last_unlock DESC NULLS LAST, g.id");
+    }
+
+    static String unlockedSql(AchievementSort sort) {
+        return UNLOCKED.replace("ORDER_BY", sort == AchievementSort.DATE
+                ? "ua.unlocked_at DESC NULLS LAST, a.id"
+                : "global_percent ASC NULLS LAST, ua.unlocked_at DESC NULLS LAST, a.id");
+    }
+
     @Override
     public List<GameWithUnlocks> gamesWithUnlocks(long userId, String query, GameSort sort, int limit, long offset) {
-        String order = sort == GameSort.NAME ? "g.search_name, g.id" : "last_unlock DESC NULLS LAST, g.id";
-        return jdbc.query(GAMES.formatted(order), new MapSqlParameterSource()
+        return jdbc.query(gamesSql(sort), new MapSqlParameterSource()
                 .addValue("userId", userId).addValue("q", query).addValue("limit", limit)
                 .addValue("offset", offset), (rs, i) -> {
             Timestamp last = rs.getTimestamp("last_unlock");
@@ -68,10 +81,7 @@ public class PickUnlocksJdbcAdapter implements PickUnlocksQueryPort {
 
     @Override
     public List<UnlockedAchievement> unlockedIn(long userId, long gameId, AchievementSort sort) {
-        String order = sort == AchievementSort.DATE
-                ? "ua.unlocked_at DESC NULLS LAST, a.id"
-                : "global_percent ASC NULLS LAST, ua.unlocked_at DESC NULLS LAST, a.id";
-        return jdbc.query(UNLOCKED.formatted(order), new MapSqlParameterSource()
+        return jdbc.query(unlockedSql(sort), new MapSqlParameterSource()
                 .addValue("userId", userId).addValue("gameId", gameId), (rs, i) -> {
             double percent = rs.getDouble("global_percent");
             Double globalPercent = rs.wasNull() ? null : percent;
