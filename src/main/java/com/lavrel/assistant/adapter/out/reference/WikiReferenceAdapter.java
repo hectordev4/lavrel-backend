@@ -31,6 +31,36 @@ public class WikiReferenceAdapter implements ReferencePort {
     }
 
     @Override
+    public List<Excerpt> findForGame(long gameId, String question) {
+        Optional<WikiSource> source = sources.find(gameId);
+        if (source.isEmpty()) {
+            return List.of();
+        }
+        WikiSource s = source.get();
+        String focus = longestWord(question);
+        List<Excerpt> excerpts = new ArrayList<>();
+        for (String title : wiki.search(s.apiUrl(), question, PAGES)) {
+            wiki.wikitext(s.apiUrl(), title)
+                    .map(WikiText::clean)
+                    .filter(text -> !text.isBlank())
+                    .map(text -> WikiText.around(text, focus, CHARS_PER_PAGE))
+                    .ifPresent(text -> excerpts.add(new Excerpt(title, s.pageUrl(title), s.license(), text)));
+        }
+        return excerpts;
+    }
+
+    /** The most telling word of a question, to cut the page around it ("Malenia" in "how do I beat Malenia?"). */
+    static String longestWord(String question) {
+        String best = null;
+        for (String word : question.split("[^\\p{L}\\p{N}]+")) {
+            if (word.length() >= 4 && (best == null || word.length() > best.length())) {
+                best = word;
+            }
+        }
+        return best;
+    }
+
+    @Override
     public List<Excerpt> find(AchievementContext achievement) {
         Optional<WikiSource> source = sources.find(achievement.gameId());
         if (source.isEmpty()) {

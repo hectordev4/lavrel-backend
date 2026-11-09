@@ -3889,6 +3889,239 @@
         "description": "Deletes our copies."
       },
       "response": []
+    },
+    {
+      "name": "99. AI chat: first question",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/games/{{trackGameId}}/chat",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games",
+            "{{trackGameId}}",
+            "chat"
+          ]
+        },
+        "description": "Open chat about a game. The frontend keeps the conversation and sends it each time; nothing is stored. Counts towards the daily limit (not for admins).",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"What should I focus on early in this game?\" }\n  ],\n  \"lang\": \"en\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "100. AI chat: follow-up with the conversation",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/games/{{trackGameId}}/chat",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "games",
+            "{{trackGameId}}",
+            "chat"
+          ]
+        },
+        "description": "The whole conversation, oldest first, ending with the new question. The last 12 messages are used.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"What should I focus on early in this game?\" },\n    { \"role\": \"assistant\", \"content\": \"(paste the previous answer here)\" },\n    { \"role\": \"user\", \"content\": \"And which achievements are missable?\" }\n  ],\n  \"lang\": \"en\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "101. Admin: rewrite a guide with instructions",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/assistant/guides/achievements/{{guideAchievementId}}/rewrite",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "assistant",
+            "guides",
+            "achievements",
+            "{{guideAchievementId}}",
+            "rewrite"
+          ]
+        },
+        "description": "Saved as curated: served to everyone, never expires, never replaced automatically. Run 54 first (it saves guideAchievementId).",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lang\": \"en\",\n  \"instructions\": \"Give much more detail: exact locations, requirements and the order of steps.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "102. Admin: save your own guide text",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+              "console.log(pm.response.json());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/assistant/guides/achievements/{{guideAchievementId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "assistant",
+            "guides",
+            "achievements",
+            "{{guideAchievementId}}"
+          ]
+        },
+        "description": "Markdown, up to 8000 characters. Keeps the previous guide's sources. Saved as curated.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lang\": \"en\",\n  \"text\": \"**Summary.** ...\\n\\n1. ...\\n2. ...\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "103. Admin: forget a guide",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/assistant/guides/achievements/{{guideAchievementId}}?lang=en",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "assistant",
+            "guides",
+            "achievements",
+            "{{guideAchievementId}}"
+          ],
+          "query": [
+            {
+              "key": "lang",
+              "value": "en"
+            }
+          ]
+        },
+        "description": "The next request writes a new one (from the wiki if the game has one)."
+      },
+      "response": []
     }
   ],
   "auth": {

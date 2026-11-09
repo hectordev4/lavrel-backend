@@ -11,6 +11,9 @@ public interface GuideRepositoryPort {
     /** Inserts or replaces. */
     void save(Guide guide);
 
+    /** Forgets one saved guide. @return false if there was none */
+    boolean delete(long achievementId, String language);
+
     /** Forgets every saved guide of a game (after its reference changed). @return how many */
     int deleteByGame(long gameId);
 }

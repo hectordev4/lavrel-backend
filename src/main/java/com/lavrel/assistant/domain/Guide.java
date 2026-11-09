@@ -9,9 +9,10 @@ import java.util.Objects;
  * A saved answer to "how do I get this achievement?", in one language. It is the same for every player (it never
  * contains anyone's progress), so it is generated once and reused. grounded: written from wiki text that allows reuse
  * (sources lists them); otherwise from the model's own knowledge, which can be wrong, so it expires sooner.
+ * curated: written or rewritten by an admin; it never expires and is never replaced automatically.
  */
 public record Guide(long achievementId, String language, String text, boolean grounded, List<Source> sources,
-                    String model, Instant createdAt) {
+                    String model, Instant createdAt, boolean curated) {
 
     public static final Duration GROUNDED_LIFETIME = Duration.ofDays(30);
     public static final Duration UNGROUNDED_LIFETIME = Duration.ofDays(7);
@@ -24,7 +25,7 @@ public record Guide(long achievementId, String language, String text, boolean gr
     }
 
     public boolean freshAt(Instant now) {
-        return createdAt.plus(grounded ? GROUNDED_LIFETIME : UNGROUNDED_LIFETIME).isAfter(now);
+        return curated || createdAt.plus(grounded ? GROUNDED_LIFETIME : UNGROUNDED_LIFETIME).isAfter(now);
     }
 
     /** Where the information came from, with its license, shown under the answer. */
