@@ -559,7 +559,7 @@ same as a user that does not exist) and never appears in the player search.
 | `RECENTLY_PLAYED` | The last 6 games played |
 | `PLAYING` | Tracked games marked `PLAYING` |
 | `COMPLETED` | Games with every achievement unlocked |
-| `ACHIEVEMENTS` | Up to 12 achievements the user picked from their own unlocks, with rarity |
+| `ACHIEVEMENTS` | Up to 12 achievements the user picked from their own unlocks, with rarity. The picker: choose a game (`GET /api/currentuser/achievements/games`), then its unlocked achievements rarest or newest first (`GET /api/currentuser/games/{gameId}/achievements/unlocked`) |
 | `STATS` | Achievements unlocked and games completed; games owned only with `showLibrarySize` on (the only place that number can appear) |
 
 - **Player search:** `GET /api/users?q=` by name (2+ characters, accent and case insensitive) or an exact public id.
@@ -683,10 +683,12 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 | PATCH | `/api/currentuser/username` | `{"username": "Héctor K."}`. `204` |
 | PATCH | `/api/currentuser/country` | `{"countryId": 12}`; `null` clears it. `204` |
 | GET | `/api/currentuser/stats` | My totals for the home screen: `achievementsUnlocked`, `averageCompletion` (percent, over games with at least one unlock, like Steam; `null` if none), `perfectGames`, `gamesOwned`. Private |
+| GET | `/api/currentuser/achievements/games?q=&sort=recent\|name&page=&size=` | Achievement picker, step 1: games where I unlocked something (`unlocked`, `total`, `lastUnlockedAt`), paged with `hasMore` |
+| GET | `/api/currentuser/games/{gameId}/achievements/unlocked?sort=rarity\|date` | Achievement picker, step 2: my unlocked achievements in that game, rarest (default) or newest first |
 | GET | `/api/currentuser/achievements/recent?limit=3` | `{"achievements": [...]}`: my latest unlocks (1–20), with game, slug, rarity and `hidden` |
 | GET / PUT | `/api/currentuser/auto-sync` | `{"enabled": false}`: automatic sync of my accounts (on by default) |
 | GET / PATCH | `/api/currentuser/profile` | Profile settings: `public`, `showCountry`, `showPlatforms`, `showAvatar`, `showLibrarySize` (all off by default) |
-| GET / POST | `/api/currentuser/profile/shelves` | My shelves; add one `{"type", "title"?, "collectionId"?}` |
+| GET / POST | `/api/currentuser/profile/shelves` | My shelves (an `ACHIEVEMENTS` shelf also returns its picked `achievements` with name, icon, game and rarity); add one `{"type", "title"?, "collectionId"?}` |
 | PATCH / DELETE | `/api/currentuser/profile/shelves/{id}` | New title / remove |
 | PUT | `/api/currentuser/profile/shelves` | `{"shelfIds": [...]}`: new order |
 | PUT | `/api/currentuser/profile/shelves/{id}/achievements` | `{"achievementIds": [...]}`: up to 12 of my unlocks |
@@ -805,6 +807,7 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 61 – 63 | Admin: mark a game as on PlayStation; search by system; unmark it |
 | 64, 65 | Automatic sync: read the setting, turn it off or on |
 | 89 | Game page by slug (no token) |
+| 104, 105 | Achievement picker: games with unlocks (saves `pickerGameId`), unlocked achievements by rarity |
 | 99, 100 | AI chat about a game: first question, then a follow-up with the conversation |
 | 101 – 103 | Admin: rewrite a guide with instructions, save your own text, forget it |
 | 96 – 98 | Admin: refresh a game's icons from Steam, copy them into our storage, serve them from Steam again |
@@ -916,6 +919,7 @@ are public but not documented by Valve and could change.
 
 ## Changelog
 
+- **feat/achievement-picker**: games with unlocks and unlocked achievements per game (rarest or newest first) for the achievements shelf; my achievement shelves return their picked achievements with details.
 - **feat/ai-chat**: open chat about a game with grounded sources, cheerful and more detailed answers, unlimited answers for admins, curated guides (V32).
 - **fix/achievement-icons**: icons served from a configurable Steam host (references kept per achievement, V31), per-game refresh from Steam, and admin copies into our own storage.
 - **feat/home**: `GET /api/currentuser/stats` and `GET /api/currentuser/achievements/recent` for the home screen, with an index for the latest unlocks (V30).
