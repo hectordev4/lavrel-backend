@@ -46,7 +46,7 @@ public class PlatformLinkController {
 
     public PlatformLinkController(CreatePlatformLinkUrlUseCase createLinkUrl,
                                   LinkPlatformAccountUseCase linkAccount,
-                                  @Value("${app.frontend.base-url:}") String frontendBaseUrl) {
+                                  @Value("${APP_FRONTEND_BASE_URL}") String frontendBaseUrl) {
         this.createLinkUrl = createLinkUrl;
         this.linkAccount = linkAccount;
         this.frontendBaseUrl = frontendBaseUrl;
