@@ -7,7 +7,7 @@ import com.lavrel.shared.error.ApiError;
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase.AuthenticatedUser;
 import com.lavrel.user.application.port.in.CreatePlatformLinkUrlUseCase;
 import com.lavrel.user.application.port.in.LinkPlatformAccountUseCase;
-import com.lavrel.user.domain.AccountAlreadyLinkedException;
+import com.lavrel.user.domain.AccountLinkedElsewhereException;
 import com.lavrel.user.domain.InvalidIdentityProofException;
 import com.lavrel.user.domain.PlatformAccount;
 import com.lavrel.user.domain.UserNotFoundException;
@@ -33,7 +33,9 @@ import org.springframework.web.util.UriComponentsBuilder;
  * The controller never names a platform: the use cases pick the right adapter.
  *
  * With app.frontend.base-url set, the callback redirects the browser to
- * {base}/{platform}/linked?status=success (or ?status=error&reason=...). Without it (no frontend yet)
+ * {base}/{platform}/linked?status=success (or ?status=error&reason=...: link_expired, invalid_link_state,
+ * identity_not_confirmed, account_linked_elsewhere, user_not_found, platform_not_supported, platform_unavailable).
+ * Linking an account that is already the user's own is a success. Without base-url (no frontend yet)
  * the callback answers with JSON, which is handy for testing from a browser.
  * The callback handles its own errors because a browser navigation needs a redirect, not a JSON error.
  */
@@ -65,10 +67,10 @@ public class PlatformLinkController {
             PlatformAccount account = linkAccount.link(
                     new LinkPlatformAccountUseCase.Command(platform, params.get("state"), params));
             return success(platform, account);
-        } catch (AccountAlreadyLinkedException e) {
-            return failure(platform, HttpStatus.CONFLICT, "account_already_linked", e.getMessage());
+        } catch (AccountLinkedElsewhereException e) {
+            return failure(platform, HttpStatus.CONFLICT, "account_linked_elsewhere", e.getMessage());
         } catch (InvalidIdentityProofException e) {
-            return failure(platform, HttpStatus.BAD_REQUEST, "invalid_identity_proof", e.getMessage());
+            return failure(platform, HttpStatus.BAD_REQUEST, reasonCode(e.reason()), e.getMessage());
         } catch (UserNotFoundException e) {
             return failure(platform, HttpStatus.NOT_FOUND, "user_not_found", e.getMessage());
         } catch (PlatformNotSupportedException e) {
@@ -100,6 +102,15 @@ public class PlatformLinkController {
         return redirect(UriComponentsBuilder.fromUriString(frontendBaseUrl)
                 .path(linkedPath(platform)).queryParam("status", "error").queryParam("reason", code)
                 .build().toUri());
+    }
+
+    /** The reason sent to the frontend for each way the identity could not be confirmed (listed in the README). */
+    static String reasonCode(InvalidIdentityProofException.Reason reason) {
+        return switch (reason) {
+            case LINK_EXPIRED -> "link_expired";
+            case INVALID_LINK_STATE -> "invalid_link_state";
+            case NOT_CONFIRMED -> "identity_not_confirmed";
+        };
     }
 
     /** /steam/linked, /xbox/linked... (the Steam one is unchanged for the frontend). */
