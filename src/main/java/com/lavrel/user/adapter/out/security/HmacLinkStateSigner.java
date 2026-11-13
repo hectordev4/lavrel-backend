@@ -3,6 +3,7 @@ package com.lavrel.user.adapter.out.security;
 import com.lavrel.shared.domain.Platform;
 import com.lavrel.user.application.port.out.LinkStateSignerPort;
 import com.lavrel.user.domain.InvalidIdentityProofException;
+import com.lavrel.user.domain.InvalidIdentityProofException.Reason;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
@@ -50,26 +51,27 @@ public class HmacLinkStateSigner implements LinkStateSignerPort {
     @Override
     public long verify(String state, Platform platform) {
         if (state == null || state.isBlank()) {
-            throw new InvalidIdentityProofException("Missing link state");
+            throw new InvalidIdentityProofException(Reason.INVALID_LINK_STATE, "Missing link state");
         }
         String[] parts = state.split("\\.");
         if (parts.length != 4) {
-            throw new InvalidIdentityProofException("Invalid link state");
+            throw new InvalidIdentityProofException(Reason.INVALID_LINK_STATE, "Invalid link state");
         }
         String expected = signature(parts[0] + "." + parts[1] + "." + parts[2]);
         if (!MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8), parts[3].getBytes(StandardCharsets.UTF_8))) {
-            throw new InvalidIdentityProofException("Invalid link state");
+            throw new InvalidIdentityProofException(Reason.INVALID_LINK_STATE, "Invalid link state");
         }
         if (!platform.name().equals(parts[1])) {
-            throw new InvalidIdentityProofException("The link state was issued for another platform");
+            throw new InvalidIdentityProofException(Reason.INVALID_LINK_STATE,
+                    "The link state was issued for another platform");
         }
         try {
             if (clock.instant().getEpochSecond() > Long.parseLong(parts[2])) {
-                throw new InvalidIdentityProofException("The link request expired. Start again.");
+                throw new InvalidIdentityProofException(Reason.LINK_EXPIRED, "The link request expired. Start again.");
             }
             return Long.parseLong(parts[0]);
         } catch (NumberFormatException e) {
-            throw new InvalidIdentityProofException("Invalid link state");
+            throw new InvalidIdentityProofException(Reason.INVALID_LINK_STATE, "Invalid link state");
         }
     }
 
