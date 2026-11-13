@@ -395,9 +395,20 @@ short-lived, signed `state` that is also bound to the platform:
 3. The platform sends the browser back to `GET /api/platforms/{platform}/callback` (Steam's registered
    `/api/steam/callback` still works).
 4. The backend checks the `state`, asks the platform to confirm the login (Steam: OpenID `check_authentication`), and
-   stores the account for that user. A platform account can be linked once, to one user.
+   stores the account for that user. A platform account can be linked to one user only. Linking is **safe to repeat**:
+   an account already linked to the same user is a success and changes nothing (an old tab, a retry).
 5. With `FRONTEND_BASE_URL` set, the browser is redirected to `{url}/{platform}/linked?status=success`
-   (or `status=error&reason=…`). Without it, the callback answers JSON.
+   (or `status=error&reason=…`). Without it, the callback answers JSON with the same codes.
+
+   | `reason` | Meaning | What the user can do |
+   |---|---|---|
+   | `link_expired` | The link request is older than 10 minutes | Start linking again |
+   | `invalid_link_state` | The link request is missing, damaged, or was started for another platform | Start linking again from Lavrel |
+   | `identity_not_confirmed` | The platform (Steam) did not confirm the login, e.g. cancelled or a mismatched callback URL | Try again; if it keeps failing, it is a configuration problem |
+   | `account_linked_elsewhere` | That platform account is already linked to another Lavrel user (never says which) | Use another account, or unlink it from the other Lavrel account |
+   | `user_not_found` | The Lavrel user who started the link no longer exists | Sign in again |
+   | `platform_not_supported` | Linking that platform is not available yet | — |
+   | `platform_unavailable` | The platform could not be reached | Try again in a moment |
 
 ### Syncing a library
 
@@ -770,7 +781,7 @@ Every error is `{"error": "<code>", "message": "<text>"}`. Validation errors add
 | 401 | `unauthorized` (missing or invalid token) |
 | 403 | `email_not_verified`, `forbidden` |
 | 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `collection_not_found`, `profile_not_found`, `shelf_not_found`, `achievement_not_found`, `creator_not_found`, `not_found` |
-| 409 | `account_already_linked`, `already_verified`, `quick_access_full`, `collection_name_taken`, `collection_limit_reached`, `last_admin`, `shelf_limit_reached` |
+| 409 | `account_linked_elsewhere`, `already_verified`, `quick_access_full`, `collection_name_taken`, `collection_limit_reached`, `last_admin`, `shelf_limit_reached` |
 | 422 | `profile_private`, `platform_not_supported`, `game_not_owned` |
 | 429 | `too_many_requests` (with a `Retry-After` header, in seconds), `assistant_quota_exceeded` |
 | 502 | `platform_unavailable`, `identity_provider_unavailable` |
@@ -861,7 +872,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `404` on `/api/dev/verify-my-email` | `app.dev.verify-email-uids` is not set, is indented wrongly (it must be under `app:` → `dev:`), or lacks your UID |
 | `404` on a game that exists | It is not published yet (no details). Run **enrich** |
 | Sync answers `422 profile_private` | In Steam: Profile → Edit Profile → Privacy Settings → Game details: **Public** |
-| Link fails with `invalid_identity_proof` | The `state` expired (10 minutes), was issued for another platform, or the callback URL differs from `STEAM_CALLBACK_URL` |
+| Link fails with `link_expired`, `invalid_link_state` or `identity_not_confirmed` | The link request expired (10 minutes), was damaged or started for another platform, or Steam did not confirm it (for example the callback URL differs from `STEAM_CALLBACK_URL`) |
 | AI answers stay general | Approve the game's wiki (85) so answers are grounded; admins can rewrite a guide with instructions (101); a bigger model (`APP_ASSISTANT_MODEL`, e.g. a 24B–26B instruct model from the catalog) gives more detail but uses the free allowance faster |
 | Assistant answers `503` and the log says Workers AI answered `410` / model not offered | Cloudflare retired the model: set `APP_ASSISTANT_MODEL` to one from https://developers.cloudflare.com/workers-ai/models/ |
 | Achievement icons do not load | Steam moved its images: set `APP_STEAM_IMAGE_BASE` to the host its store pages use now and restart; for one game, refresh its icons (Postman 96) or copy them into our storage (97) |
@@ -919,6 +930,7 @@ are public but not documented by Valve and could change.
 
 ## Changelog
 
+- **fix/steam-link**: linking is safe to repeat (own account = success); `account_linked_elsewhere` replaces `account_already_linked`; link errors say whether the request expired, was invalid or was not confirmed.
 - **feat/achievement-picker**: games with unlocks and unlocked achievements per game (rarest or newest first) for the achievements shelf; my achievement shelves return their picked achievements with details.
 - **feat/ai-chat**: open chat about a game with grounded sources, cheerful and more detailed answers, unlimited answers for admins, curated guides (V32).
 - **fix/achievement-icons**: icons served from a configurable Steam host (references kept per achievement, V31), per-game refresh from Steam, and admin copies into our own storage.

@@ -29,7 +29,7 @@ import com.lavrel.shared.storage.StorageUnavailableException;
 import com.lavrel.tracking.domain.GameNotTrackedException;
 import com.lavrel.tracking.domain.InvalidQuickAccessOrderException;
 import com.lavrel.tracking.domain.QuickAccessFullException;
-import com.lavrel.user.domain.AccountAlreadyLinkedException;
+import com.lavrel.user.domain.AccountLinkedElsewhereException;
 import com.lavrel.user.domain.CountryNotFoundException;
 import com.lavrel.user.domain.EmailAlreadyVerifiedException;
 import com.lavrel.user.domain.EmailVerificationNotAllowedException;
@@ -290,9 +290,9 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.CONFLICT, "last_admin", e.getMessage());
     }
 
-    @ExceptionHandler(AccountAlreadyLinkedException.class)
-    public ResponseEntity<ApiError> accountAlreadyLinked(AccountAlreadyLinkedException e) {
-        return error(HttpStatus.CONFLICT, "account_already_linked", e.getMessage());
+    @ExceptionHandler(AccountLinkedElsewhereException.class)
+    public ResponseEntity<ApiError> accountLinkedElsewhere(AccountLinkedElsewhereException e) {
+        return error(HttpStatus.CONFLICT, "account_linked_elsewhere", e.getMessage());
     }
 
     // ---------------------------------------------------------------- 422: cannot be processed now
