@@ -11,7 +11,8 @@ import java.util.Objects;
  *  - publicId: the 16-digit number other people see;
  *  - username: a free display name, not unique (see Usernames);
  *  - countryId: optional; users without one are left out of country statistics;
- *  - emailVerified: stored for queries; permissions come from the token of each request.
+ *  - emailVerified: stored for queries; permissions come from the token of each request;
+ *  - setupCompletedAt: when the user finished (or skipped) the first-setup screen; null until then.
  *
  * An entity: its identity is the Firebase account, and it changes over time through its methods, which keep it
  * valid (an invalid change leaves it as it was). Create it with {@link #register}; the persistence adapter rebuilds
@@ -29,9 +30,10 @@ public class User {
     private Integer countryId;
     private Role role;
     private final Instant createdAt;
+    private Instant setupCompletedAt;
 
     private User(Long id, long publicId, String firebaseUid, String username, String email, boolean emailVerified,
-                 String photoUrl, Integer countryId, Role role, Instant createdAt) {
+                 String photoUrl, Integer countryId, Role role, Instant createdAt, Instant setupCompletedAt) {
         if (!PublicIds.isValid(publicId)) {
             throw new IllegalArgumentException("publicId must have 16 digits");
         }
@@ -45,21 +47,25 @@ public class User {
         this.countryId = countryId;
         this.role = Objects.requireNonNull(role, "role");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
+        this.setupCompletedAt = setupCompletedAt;
     }
 
-    /** Someone signing in for the first time: a USER with the starting name they were given. No id yet. */
+    /**
+     * Someone signing in for the first time: a USER with the starting name they were given, who has not done the
+     * first setup yet. No id yet.
+     */
     public static User register(long publicId, String firebaseUid, String startingName, String email,
                                 boolean emailVerified, String photoUrl, Instant now) {
         return new User(null, publicId, firebaseUid, startingName, email, emailVerified, photoUrl, null, Role.USER,
-                now);
+                now, null);
     }
 
     /** Rebuilds a stored user. For persistence adapters only: it does not check the username rules again. */
     public static User restore(Long id, long publicId, String firebaseUid, String username, String email,
                                boolean emailVerified, String photoUrl, Integer countryId, Role role,
-                               Instant createdAt) {
+                               Instant createdAt, Instant setupCompletedAt) {
         return new User(id, publicId, firebaseUid, username, email, emailVerified, photoUrl, countryId, role,
-                createdAt);
+                createdAt, setupCompletedAt);
     }
 
     // ------------------------------------------------------------------ behaviour
@@ -98,6 +104,19 @@ public class User {
     /** Sets the country; null clears it (the user is then left out of country statistics). */
     public void changeCountry(Integer newCountryId) {
         this.countryId = newCountryId;
+    }
+
+    /**
+     * Records that the first-setup screen is done (saved or skipped). Only the first time counts.
+     *
+     * @return true if this is the first time, so the caller knows it has to save
+     */
+    public boolean completeSetup(Instant now) {
+        if (setupCompletedAt != null) {
+            return false;
+        }
+        this.setupCompletedAt = Objects.requireNonNull(now, "now");
+        return true;
     }
 
     /** @return true if it changed. Who may change roles is decided by the use case. */
@@ -153,6 +172,15 @@ public class User {
 
     public Instant createdAt() {
         return createdAt;
+    }
+
+    /** When the first-setup screen was done (saved or skipped); null if it has not been yet. */
+    public Instant setupCompletedAt() {
+        return setupCompletedAt;
+    }
+
+    public boolean setupCompleted() {
+        return setupCompletedAt != null;
     }
 
     /** Two users are the same person when they have the same Firebase identity. */

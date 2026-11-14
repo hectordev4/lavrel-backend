@@ -49,13 +49,14 @@ class AuthenticateUserServiceTest {
         assertThat(saved.getValue().username()).isEqualTo("SwiftOtter");
         assertThat(saved.getValue().emailVerified()).isFalse();
         assertThat(saved.getValue().publicId()).isEqualTo(PublicIds.MIN + 5);
+        assertThat(saved.getValue().setupCompleted()).isFalse();
         assertThat(result.emailVerified()).isFalse();
     }
 
     @Test
     void roleAndVerificationReachTheSecurityLayer() {
         User admin = User.restore(7L, PublicIds.MIN, "uid-7", "boss", "a@b.c", true, null, null, Role.ADMIN,
-                CLOCK.instant());
+                CLOCK.instant(), null);
         when(tokens.verify("t")).thenReturn(new VerifiedToken("uid-7", "a@b.c", true, null, null));
         when(users.findByFirebaseUid("uid-7")).thenReturn(Optional.of(admin));
 
@@ -69,7 +70,7 @@ class AuthenticateUserServiceTest {
     @Test
     void clickingTheVerificationLinkIsStoredOnTheNextRequest() {
         User stored = User.restore(7L, PublicIds.MIN, "uid-7", "SwiftOtter", "a@b.c", false, null, null, Role.USER,
-                CLOCK.instant());
+                CLOCK.instant(), null);
         when(tokens.verify("t")).thenReturn(new VerifiedToken("uid-7", "a@b.c", true, null, null));
         when(users.findByFirebaseUid("uid-7")).thenReturn(Optional.of(stored));
         when(users.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -83,7 +84,7 @@ class AuthenticateUserServiceTest {
     @Test
     void unchangedSignInDataIsNotWritten() {
         User stored = User.restore(7L, PublicIds.MIN, "uid-7", "SwiftOtter", "a@b.c", true, null, null, Role.USER,
-                CLOCK.instant());
+                CLOCK.instant(), null);
         when(tokens.verify("t")).thenReturn(new VerifiedToken("uid-7", "a@b.c", true, null, null));
         when(users.findByFirebaseUid("uid-7")).thenReturn(Optional.of(stored));
 
@@ -95,7 +96,7 @@ class AuthenticateUserServiceTest {
     @Test
     void everyAuthenticationRecordsActivity() {
         User stored = User.restore(7L, PublicIds.MIN, "uid-7", "SwiftOtter", "a@b.c", true, null, null, Role.USER,
-                CLOCK.instant());
+                CLOCK.instant(), null);
         when(tokens.verify("t")).thenReturn(new VerifiedToken("uid-7", "a@b.c", true, null, null));
         when(users.findByFirebaseUid("uid-7")).thenReturn(Optional.of(stored));
 
@@ -106,6 +107,6 @@ class AuthenticateUserServiceTest {
 
     private static User withId(User u) {
         return User.restore(1L, u.publicId(), u.firebaseUid(), u.username(), u.email(), u.emailVerified(), u.photoUrl(),
-                u.countryId(), u.role(), u.createdAt());
+                u.countryId(), u.role(), u.createdAt(), null);
     }
 }

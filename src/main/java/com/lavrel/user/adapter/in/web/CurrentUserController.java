@@ -1,6 +1,7 @@
 package com.lavrel.user.adapter.in.web;
 
 import com.lavrel.user.application.port.in.AuthenticateUserUseCase.AuthenticatedUser;
+import com.lavrel.user.application.port.in.CompleteSetupUseCase;
 import com.lavrel.user.application.port.in.DeleteAccountUseCase;
 import com.lavrel.user.application.port.in.GetCurrentUserUseCase;
 import com.lavrel.user.application.port.in.GetCurrentUserUseCase.CurrentUserView;
@@ -16,6 +17,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -31,15 +33,18 @@ public class CurrentUserController {
     private final UpdateUserCountryUseCase updateUserCountry;
     private final UpdateUsernameUseCase updateUsername;
     private final DeleteAccountUseCase deleteAccount;
+    private final CompleteSetupUseCase completeSetup;
 
     public CurrentUserController(GetCurrentUserUseCase getCurrentUser,
                                  UpdateUserCountryUseCase updateUserCountry,
                                  UpdateUsernameUseCase updateUsername,
-                                 DeleteAccountUseCase deleteAccount) {
+                                 DeleteAccountUseCase deleteAccount,
+                                 CompleteSetupUseCase completeSetup) {
         this.getCurrentUser = getCurrentUser;
         this.updateUserCountry = updateUserCountry;
         this.updateUsername = updateUsername;
         this.deleteAccount = deleteAccount;
+        this.completeSetup = completeSetup;
     }
 
     /**
@@ -48,12 +53,13 @@ public class CurrentUserController {
      * changes it; publicId is the number that identifies them to others. countryId is null until the user picks
      * a country. When emailVerified is false, this is the only endpoint the account can use: the frontend shows
      * "check your inbox", and once the link is clicked it refreshes the token (getIdToken(true)) and calls again.
+     * setupCompleted is false until the user saves or skips the one-time "Make it yours" screen (on any device).
      */
     @GetMapping
     public CurrentUserResponse getCurrentUser(@AuthenticationPrincipal AuthenticatedUser user) {
         CurrentUserView view = getCurrentUser.getCurrentUser(user.userId());
         return new CurrentUserResponse(view.publicId(), view.firebaseUid(), view.username(), view.email(),
-                view.emailVerified(), view.photoUrl(), view.countryId(), view.role());
+                view.emailVerified(), view.photoUrl(), view.countryId(), view.role(), view.setupCompleted());
     }
 
     /** Body {"countryId": 12} sets the country; {"countryId": null} (or {}) clears it. */
@@ -75,8 +81,19 @@ public class CurrentUserController {
         updateUsername.updateUsername(user.userId(), request.username());
     }
 
+    /**
+     * PUT /api/currentuser/setup, no body: the "Make it yours" screen is done, for "Save and continue" and for
+     * "Skip for now". Safe to repeat (the first time is kept). 204. Name, avatar and country keep their own endpoints.
+     */
+    @PutMapping("/setup")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void completeSetup(@AuthenticationPrincipal AuthenticatedUser user) {
+        completeSetup.completeSetup(user.userId());
+    }
+
     public record CurrentUserResponse(long publicId, String firebaseUid, String username, String email,
-                                      boolean emailVerified, String photoUrl, Integer countryId, Role role) {
+                                      boolean emailVerified, String photoUrl, Integer countryId, Role role,
+                                      boolean setupCompleted) {
     }
 
     /**

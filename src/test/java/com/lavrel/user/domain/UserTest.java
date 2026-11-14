@@ -72,7 +72,7 @@ class UserTest {
     @Test
     void sameFirebaseAccountMeansSameUser() {
         User a = newUser();
-        User b = User.restore(9L, PublicIds.MIN + 2, "uid-1", "Other", null, true, null, null, Role.ADMIN, NOW);
+        User b = User.restore(9L, PublicIds.MIN + 2, "uid-1", "Other", null, true, null, null, Role.ADMIN, NOW, null);
         assertThat(a).isEqualTo(b).hasSameHashCodeAs(b);
     }
 
@@ -80,5 +80,24 @@ class UserTest {
     void toStringHidesPrivateData() {
         String text = newUser().toString();
         assertThat(text).doesNotContain("me@mail.com", "photo.png", "uid-1").contains("SwiftOtter");
+    }
+
+    @Test
+    void aNewUserHasNotDoneTheFirstSetup() {
+        User user = newUser();
+        assertThat(user.setupCompleted()).isFalse();
+        assertThat(user.setupCompletedAt()).isNull();
+    }
+
+    @Test
+    void completeSetupKeepsTheFirstTime() {
+        User user = newUser();
+        Instant later = NOW.plusSeconds(60);
+
+        assertThat(user.completeSetup(NOW)).isTrue();
+        assertThat(user.completeSetup(later)).isFalse();
+
+        assertThat(user.setupCompleted()).isTrue();
+        assertThat(user.setupCompletedAt()).isEqualTo(NOW);
     }
 }

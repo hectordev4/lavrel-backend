@@ -15,9 +15,10 @@ public interface GetCurrentUserUseCase {
 
     /**
      * publicId is what other people see; the database id never leaves the backend. emailVerified is the stored
-     * flag, refreshed from the token earlier in the same request, so it is current.
+     * flag, refreshed from the token earlier in the same request, so it is current. setupCompleted is false until
+     * the user saves or skips the first-setup screen.
      */
     record CurrentUserView(long publicId, String firebaseUid, String username, String email, boolean emailVerified,
-                           String photoUrl, Integer countryId, Role role) {
+                           String photoUrl, Integer countryId, Role role, boolean setupCompleted) {
     }
 }
