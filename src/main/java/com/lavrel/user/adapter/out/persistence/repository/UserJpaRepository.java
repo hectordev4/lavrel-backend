@@ -37,4 +37,13 @@ public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
                        @Param("countryId") Integer countryId,
                        @Param("role") String role,
                        @Param("createdAt") Instant createdAt);
+
+    /**
+     * Marks the first setup as done, only if it was not already: the first time is kept, and two calls at the same
+     * moment cannot overwrite each other.
+     */
+    @Modifying
+    @Query(value = "UPDATE users SET setup_completed_at = :at WHERE id = :id AND setup_completed_at IS NULL",
+            nativeQuery = true)
+    int markSetupCompleted(@Param("id") long id, @Param("at") Instant at);
 }

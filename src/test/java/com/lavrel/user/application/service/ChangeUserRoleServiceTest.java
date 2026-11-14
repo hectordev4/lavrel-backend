@@ -26,7 +26,7 @@ class ChangeUserRoleServiceTest {
     private final ChangeUserRoleService service = new ChangeUserRoleService(users);
 
     private static User user(long id, Role role) {
-        return User.restore(id, TARGET_PUBLIC_ID, "uid-" + id, "name", null, true, null, null, role, Instant.EPOCH);
+        return User.restore(id, TARGET_PUBLIC_ID, "uid-" + id, "name", null, true, null, null, role, Instant.EPOCH, null);
     }
 
     @Test

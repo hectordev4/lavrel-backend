@@ -52,7 +52,7 @@ class LinkPlatformAccountServiceTest {
                 Clock.fixed(T, ZoneOffset.UTC));
         when(signer.verify("state", Platform.STEAM)).thenReturn(1L);
         when(users.findById(1L)).thenReturn(Optional.of(User.restore(1L, PublicIds.MIN, "uid", "Otter", null, true,
-                null, null, Role.USER, T)));
+                null, null, Role.USER, T, null)));
         when(steam.verify(any())).thenReturn(new PlatformIdentity("7656", "Nick"));
     }
 

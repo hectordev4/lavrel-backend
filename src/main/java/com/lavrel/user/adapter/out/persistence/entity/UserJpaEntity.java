@@ -40,11 +40,20 @@ public class UserJpaEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /**
+     * Read only for JPA: new users are inserted with a native query (null), and the only write is
+     * UserJpaRepository.markSetupCompleted. So a save of the whole user (a new country, a refreshed e-mail) that
+     * runs at the same time can never put it back to null.
+     */
+    @Column(name = "setup_completed_at", insertable = false, updatable = false)
+    private Instant setupCompletedAt;
+
     protected UserJpaEntity() {
     }
 
     public UserJpaEntity(Long id, long publicId, String firebaseUid, String username, String email,
-                         boolean emailVerified, String photoUrl, Integer countryId, Role role, Instant createdAt) {
+                         boolean emailVerified, String photoUrl, Integer countryId, Role role, Instant createdAt,
+                         Instant setupCompletedAt) {
         this.id = id;
         this.publicId = publicId;
         this.firebaseUid = firebaseUid;
@@ -55,6 +64,7 @@ public class UserJpaEntity {
         this.countryId = countryId;
         this.role = role;
         this.createdAt = createdAt;
+        this.setupCompletedAt = setupCompletedAt;
     }
 
     public Long getId() {
@@ -95,5 +105,9 @@ public class UserJpaEntity {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Instant getSetupCompletedAt() {
+        return setupCompletedAt;
     }
 }

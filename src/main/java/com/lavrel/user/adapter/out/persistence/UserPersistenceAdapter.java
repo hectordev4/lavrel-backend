@@ -5,6 +5,7 @@ import com.lavrel.user.adapter.out.persistence.repository.UserJpaRepository;
 import com.lavrel.user.application.port.out.UserRepositoryPort;
 import com.lavrel.user.domain.Role;
 import com.lavrel.user.domain.User;
+import java.time.Instant;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,6 +65,12 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
     @Transactional(readOnly = true)
     public long countByRole(Role role) {
         return repository.countByRole(role);
+    }
+
+    @Override
+    @Transactional
+    public void markSetupCompleted(long id, Instant at) {
+        repository.markSetupCompleted(id, at);
     }
 
     @Override
