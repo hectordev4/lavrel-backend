@@ -28,7 +28,7 @@ class DeleteAccountServiceTest {
 
     private static User user(Role role) {
         return User.restore(7L, PublicIds.MIN + 7, "uid-7", "SwiftOtter", "a@b.c", true, null, null, role,
-                Instant.EPOCH);
+                Instant.EPOCH, null);
     }
 
     @Test

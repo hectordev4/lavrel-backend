@@ -68,7 +68,7 @@
       "response": []
     },
     {
-      "name": "2. Current user (own profile: publicId, username, e-mail, emailVerified, role, country)",
+      "name": "2. Current user (own profile: publicId, username, e-mail, emailVerified, role, country, setupCompleted)",
       "event": [
         {
           "listen": "test",
@@ -81,7 +81,7 @@
               "pm.test(\"Has a 16-digit publicId\", function () { pm.expect(String(me.publicId)).to.have.lengthOf(16); });",
               "pm.test(\"Has emailVerified and role\", function () { pm.expect(me.emailVerified).to.be.a(\"boolean\"); pm.expect(me.role).to.be.oneOf([\"USER\", \"SUPPORT\", \"ADMIN\"]); });",
               "if (!me.emailVerified) { console.log(\"E-mail not verified: every other endpoint will answer 403 email_not_verified.\"); }",
-              "const me = pm.response.json();",
+              "pm.test(\"Has setupCompleted\", function () { pm.expect(me.setupCompleted).to.be.a(\"boolean\"); });",
               "if (me.publicId) { pm.collectionVariables.set(\"myPublicId\", String(me.publicId)); pm.collectionVariables.set(\"myUsername\", me.username); }"
             ]
           }
@@ -4209,6 +4209,38 @@
           ]
         },
         "description": "Step 2: rarest first (sort=date: newest first). Saves the first id as showcaseAchievementId for request 71."
+      },
+      "response": []
+    },
+    {
+      "name": "106. First setup done (Save and continue / Skip for now)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });",
+              "console.log(\"Run it again: still 204, and the first time is kept. Then run 2: setupCompleted is true.\");"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/setup",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "setup"
+          ]
+        },
+        "description": "No body. Marks the one-time \"Make it yours\" screen as done for this account, on every device. Safe to repeat. An unverified e-mail gets 403 email_not_verified."
       },
       "response": []
     }

@@ -137,7 +137,7 @@ src/main/java/com/lavrel
 └── devtools/    fake data, one-time e-mail verification
 src/main/resources
 ├── application.yml
-└── db/migration/   V1 … V32
+└── db/migration/   V1 … V33
 ```
 
 ### The Steam import (`catalog/application/service/steam`)
@@ -300,8 +300,9 @@ Flyway is the only source of schema changes. Never edit a migration that has bee
 | V28 | `franchise_blocklist` (names marked as "not a franchise"; seeded with EA Play) |
 | V29 | `game.slug`: unique, permanent page addresses (`lavrel_slug()`, filled for existing games, set by a trigger for new ones) |
 | V30 | Index for "my latest unlocks" (user, unlock date newest first) |
-| V32 | `assistant_guide.curated` (guides an admin wrote or had rewritten; never expire) |
 | V31 | Achievement icons: `icon_path` (Steam reference), `icon_mirrored`, `app_setting` (Steam image host), trigger that serves every Steam icon from the current host |
+| V32 | `assistant_guide.curated` (guides an admin wrote or had rewritten; never expire) |
+| V33 | `users.setup_completed_at` (first-setup screen done); set to the migration time for every existing user |
 
 There is no V8 on purpose (it was superseded by V9 before release). Flyway does not need consecutive numbers.
 Check what is applied with:
@@ -382,6 +383,11 @@ reach the backend. There is no login by username.
 - The e-mail and photo of the sign-in account are **private**: only the user sees them, through `GET /api/currentuser`.
   `User.toString()` leaves them out, so they never reach the logs.
 - The optional **country** is only used for aggregate statistics.
+- **First setup.** New accounts see a one-time "Make it yours" screen (name, avatar, country, or "Skip for now").
+  Whether it is done is stored on the user (`users.setup_completed_at`), so a second device does not show it again:
+  `GET /api/currentuser` returns `setupCompleted`, and the screen calls `PUT /api/currentuser/setup` when the user saves
+  or skips. Name, avatar and country are still saved through their own endpoints. Accounts that existed before V33
+  count as done.
 
 ## Platforms: linking and syncing
 
@@ -684,7 +690,7 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/currentuser` | Own profile: `publicId`, `firebaseUid`, `username`, `email`, `emailVerified`, `photoUrl`, `countryId`, `role` |
+| GET | `/api/currentuser` | Own profile: `publicId`, `firebaseUid`, `username`, `email`, `emailVerified`, `photoUrl`, `countryId`, `role`, `setupCompleted` (`false` until the first-setup screen is saved or skipped; a brand-new user starts with `false`) |
 | DELETE | `/api/currentuser?confirm=true` | Deletes the account for good: our data and the Firebase sign-in account. `204`; `409 last_admin` for the only admin |
 
 ### Signed in and verified
@@ -693,6 +699,7 @@ Base URL: `http://localhost:8080`. JSON everywhere. Calls that need login send `
 |---|---|---|
 | PATCH | `/api/currentuser/username` | `{"username": "Héctor K."}`. `204` |
 | PATCH | `/api/currentuser/country` | `{"countryId": 12}`; `null` clears it. `204` |
+| PUT | `/api/currentuser/setup` | No body. The first-setup screen is done (for "Save and continue" and "Skip for now"). Safe to repeat: the first time is kept. `204` |
 | GET | `/api/currentuser/stats` | My totals for the home screen: `achievementsUnlocked`, `averageCompletion` (percent, over games with at least one unlock, like Steam; `null` if none), `perfectGames`, `gamesOwned`. Private |
 | GET | `/api/currentuser/achievements/games?q=&sort=recent\|name&page=&size=` | Achievement picker, step 1: games where I unlocked something (`unlocked`, `total`, `lastUnlockedAt`), paged with `hasMore` |
 | GET | `/api/currentuser/games/{gameId}/achievements/unlocked?sort=rarity\|date` | Achievement picker, step 2: my unlocked achievements in that game, rarest (default) or newest first |
@@ -819,6 +826,7 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 64, 65 | Automatic sync: read the setting, turn it off or on |
 | 89 | Game page by slug (no token) |
 | 104, 105 | Achievement picker: games with unlocks (saves `pickerGameId`), unlocked achievements by rarity |
+| 106 | First setup done (run it twice: both `204`; then 2 shows `setupCompleted: true`) |
 | 99, 100 | AI chat about a game: first question, then a follow-up with the conversation |
 | 101 – 103 | Admin: rewrite a guide with instructions, save your own text, forget it |
 | 96 – 98 | Admin: refresh a game's icons from Steam, copy them into our storage, serve them from Steam again |
@@ -864,7 +872,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `Could not resolve placeholder 'X'` at start | Variable missing from `.env`, or the app was not started from the project root |
 | Flyway: `canceling statement due to statement timeout` | A migration tried to alter `flyway_schema_history` while Flyway holds it. Do that by hand, after the first start |
 | Flyway: `Found non-empty schema(s) "public" but no schema history table` | Tables exist from a manual run. Drop them and let Flyway create them |
-| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V32 must be there) |
+| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V33 must be there) |
 | V16 fails (`permission denied` or `function unaccent does not exist`) | Enable `pg_trgm` and `unaccent` in Supabase (Database → Extensions) and restart |
 | `401` with a token that looks valid | The token and the service-account key belong to different Firebase projects. The server log gives the reason |
 | `403 email_not_verified` | The e-mail is not verified, or the token is older than the verification: refresh it (`getIdToken(true)`, or Postman request 1) |
@@ -930,6 +938,7 @@ are public but not documented by Valve and could change.
 
 ## Changelog
 
+- **feat/first-setup**: the first-setup screen is remembered per account, not per device: `setupCompleted` on `GET /api/currentuser`, `PUT /api/currentuser/setup` (V33; existing users count as done).
 - **fix/steam-link**: linking is safe to repeat (own account = success); `account_linked_elsewhere` replaces `account_already_linked`; link errors say whether the request expired, was invalid or was not confirmed.
 - **feat/achievement-picker**: games with unlocks and unlocked achievements per game (rarest or newest first) for the achievements shelf; my achievement shelves return their picked achievements with details.
 - **feat/ai-chat**: open chat about a game with grounded sources, cheerful and more detailed answers, unlimited answers for admins, curated guides (V32).
