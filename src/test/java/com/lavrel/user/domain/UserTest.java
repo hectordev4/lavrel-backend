@@ -100,4 +100,16 @@ class UserTest {
         assertThat(user.setupCompleted()).isTrue();
         assertThat(user.setupCompletedAt()).isEqualTo(NOW);
     }
+
+    @Test
+    void aPlainUserCannotTakeAStaffNameButStaffCan() {
+        User user = newUser();
+        assertThatThrownBy(() -> user.changeUsername("Lavrel Support"))
+                .isInstanceOf(UsernameReservedException.class);
+        assertThat(user.username()).isEqualTo("SwiftOtter");
+
+        user.changeRole(Role.SUPPORT);
+        assertThat(user.changeUsername("Lavrel Support")).isTrue();
+        assertThat(user.username()).isEqualTo("Lavrel Support");
+    }
 }

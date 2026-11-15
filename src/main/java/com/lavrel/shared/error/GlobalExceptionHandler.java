@@ -41,6 +41,7 @@ import com.lavrel.user.domain.LastAdminException;
 import com.lavrel.user.domain.PlatformAccountNotFoundException;
 import com.lavrel.user.domain.PublicUserNotFoundException;
 import com.lavrel.user.domain.UserNotFoundException;
+import com.lavrel.user.domain.UsernameReservedException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,6 +106,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ApiError> missingParameter(MissingServletRequestParameterException e) {
         return error(HttpStatus.BAD_REQUEST, "missing_parameter", "Missing parameter '" + e.getParameterName() + "'");
+    }
+
+    /** More specific than InvalidUsernameException, so Spring picks this one for reserved names. */
+    @ExceptionHandler(UsernameReservedException.class)
+    public ResponseEntity<ApiError> usernameReserved(UsernameReservedException e) {
+        return error(HttpStatus.BAD_REQUEST, "username_reserved", e.getMessage());
     }
 
     @ExceptionHandler(InvalidUsernameException.class)

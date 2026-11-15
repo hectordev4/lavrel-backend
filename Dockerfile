@@ -21,11 +21,11 @@ WORKDIR /app
 COPY --from=build --chown=lavrel:lavrel /app /app
 USER lavrel
 
-# Sized for small containers (Cloud Run: 1 vCPU, 1 GiB): the heap takes 75 % of the container's memory, the serial
+# Sized for small containers (Render Free: 0.1 vCPU, 512 MB): the heap takes 75 % of the container's memory, the serial
 # collector suits a single CPU, and an out-of-memory error stops the container so the platform restarts it.
 # Override at deploy time with JAVA_TOOL_OPTIONS if needed.
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
 
-# Cloud Run sends the port in PORT (application.yml: server.port: ${PORT:8080}).
+# The host sends the port in PORT (Render: 10000; application.yml: server.port: ${PORT:8080}).
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

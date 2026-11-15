@@ -73,7 +73,7 @@ pages are public and can be shown to people who are not logged in.
 - **Firebase Authentication** (the frontend signs in; the backend verifies the ID token with the Admin SDK)
 - **Spring Security 7**, stateless, one custom filter; **Bean Validation** on every request
 - Steam **Web API** and the Steam store backend, through Spring's `RestClient` and Jackson 3
-- Tests: JUnit 5, AssertJ and Mockito (unit tests, no database needed)
+- Tests: JUnit 5, AssertJ and Mockito; Testcontainers (PostgreSQL in Docker) for persistence tests
 
 ## Architecture
 
@@ -195,9 +195,10 @@ On the first start Flyway creates the whole schema (including 50 development cou
 
 ### Deploying
 
-The backend ships as a Docker image (`Dockerfile`, Java 21, non-root) and runs on **Google Cloud Run** inside its free
-monthly allowance. The image is built in Google Cloud, so Docker is not needed locally. Step by step, including secrets
-and costs: [docs/DEPLOY.md](docs/DEPLOY.md). Locally, keep using `mvn spring-boot:run`.
+The backend ships as a Docker image (`Dockerfile`, Java 21, non-root) and runs on **Render** as a Docker web service on
+the Free instance type (<https://lavrel.onrender.com>). Render builds the image from `main` on every merge, so Docker is
+not needed to deploy. Service settings, environment variables and the Firebase secret file:
+[docs/DEPLOY.md](docs/DEPLOY.md). Locally, keep using `mvn spring-boot:run`.
 
 ## Configuration
 
@@ -219,7 +220,7 @@ and costs: [docs/DEPLOY.md](docs/DEPLOY.md). Locally, keep using `mvn spring-boo
 | `SUPABASE_SERVICE_KEY` | no | Supabase **service-role** key, for avatar uploads. A secret: backend environment only |
 | `FAKE_DATA_ENABLED` | no | `true` enables the fake-data endpoints (development only) |
 | `CORS_ALLOWED_ORIGINS` | no | Browser origins allowed to call the API, comma-separated. Default `http://localhost:4200` |
-| `PORT` | no | HTTP port; set by Cloud Run. Default `8080` |
+| `PORT` | no | HTTP port. `10000` on Render. Default `8080` |
 
 Spring does not read `.env` by itself: `application.yml` imports it with
 `spring.config.import: optional:file:.env[.properties]`, so run the app from the project root.
@@ -376,8 +377,19 @@ reach the backend. There is no login by username.
 - Every user has a **public id**: a random 16-digit number, drawn again if taken. It is what other people will see
   (profile addresses, community features). The sequential database id never leaves the backend.
 - The **username** is a free display name, **not unique** (the public id tells people apart): 2 to 32 characters,
-  letters of any alphabet, digits, spaces and `_ . - ' ! ? & # ( ) [ ]`. Names posing as staff are rejected, even
-  disguised (`a.d.m.i.n`).
+  letters of any alphabet, digits, spaces and `_ . - ' ! ? & # ( ) [ ]`. Breaking these rules answers
+  `400 invalid_username`.
+- **Reserved names** (`400 username_reserved`), so nobody passes as Lavrel or its staff. The list lives in the backend
+  (`Usernames`); the name is compared without capitals, accents, spaces, symbols or digits, and also with look-alike
+  digits and letters read as the letter they imitate (`4dm1n`, a Cyrillic `а`):
+  - **Lavrel** anywhere in the name: `Lavrel Support`, `TheLavrelTeam`, `L4vrel`.
+  - **A staff word as any word**: admin, administrator, moderator, staff, official (and the Spanish forms):
+    `Head Admin`, `Official Steve`.
+  - **A reserved name as the whole name**: those words plus support, mod, dev, developer, help, system, root, owner,
+    Steam, Xbox, PlayStation, null, deleted…: `Support`, `S.U.P.P.O.R.T`, `Admin123`. Common gamer words are only
+    blocked on their own, so `Support Main`, `Modern Gamer` or `Badminton Pro` are fine.
+  - Staff accounts (`SUPPORT`, `ADMIN`) may use reserved names. Names already stored are not changed; the rule applies
+    the next time someone picks a name.
 - New users start with a friendly random name such as `SwiftOtter` or `SleepyWaffle` (one adjective and one noun from
   two neutral lists). The name never comes from the Google account.
 - The e-mail and photo of the sign-in account are **private**: only the user sees them, through `GET /api/currentuser`.
@@ -784,7 +796,7 @@ Every error is `{"error": "<code>", "message": "<text>"}`. Validation errors add
 
 | Status | Codes |
 |---|---|
-| 400 | `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `country_not_found`, `invalid_identity_proof`, `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order`, `invalid_collection_name`, `invalid_collection_order`, `invalid_shelf`, `invalid_avatar`, `invalid_question`, `invalid_wiki_source` |
+| 400 | `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `username_reserved`, `country_not_found`, `invalid_identity_proof`, `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order`, `invalid_collection_name`, `invalid_collection_order`, `invalid_shelf`, `invalid_avatar`, `invalid_question`, `invalid_wiki_source` |
 | 401 | `unauthorized` (missing or invalid token) |
 | 403 | `email_not_verified`, `forbidden` |
 | 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `collection_not_found`, `profile_not_found`, `shelf_not_found`, `achievement_not_found`, `creator_not_found`, `not_found` |
@@ -827,6 +839,7 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 89 | Game page by slug (no token) |
 | 104, 105 | Achievement picker: games with unlocks (saves `pickerGameId`), unlocked achievements by rarity |
 | 106 | First setup done (run it twice: both `204`; then 2 shows `setupCompleted: true`) |
+| 107 | Staff name refused (`400 username_reserved`; with a plain USER account) |
 | 99, 100 | AI chat about a game: first question, then a follow-up with the conversation |
 | 101 – 103 | Admin: rewrite a guide with instructions, save your own text, forget it |
 | 96 – 98 | Admin: refresh a game's icons from Steam, copy them into our storage, serve them from Steam again |
@@ -849,10 +862,14 @@ mvn clean test
 **GitHub Actions** (`.github/workflows/ci.yml`) runs `mvn verify` on every push and pull request, and pull requests into
 `main` also build the Docker image. A red cross on a PR means something broke: open the run to see which test failed.
 
-About 100 unit tests, no database or network needed (JUnit 5, AssertJ, Mockito):
+Unit tests need no database or network (JUnit 5, AssertJ, Mockito). **Persistence tests** run against a real
+PostgreSQL that Testcontainers starts in Docker, with the schema built by the Flyway migrations; each test rolls back.
+They need Docker running: without it they are **skipped**, not failed (GitHub CI has Docker, so they always run there).
 
 | Area | Tests |
 |---|---|
+| Persistence (Testcontainers) | `UserAchievementJpaRepositoryTest` (an unlock stored twice is kept once; unlinking removes only that account's unlocks) |
+| Progress | `RecordUnlocksServiceTest`, `PickUnlocksServiceTest`, `PickUnlocksJdbcAdapterTest`, `GetMyProgressServiceTest`, `GetGameAchievementsServiceTest` |
 | Content policy and Steam import | `ContentPolicyTest`, `SteamGameScreeningTest`, `SteamImportRunTest`, `ContentExemptionServiceTest` |
 | Entities and mappers | `UserTest`, `PlatformAccountTest`, `GameTest`, `TrackedGameTest`, `UserMapperTest`, `PlatformAccountMapperTest`, `GameMapperTest` |
 | Accounts | `UsernamesTest`, `AuthenticateUserServiceTest`, `PublicIdAllocatorTest`, `UsernameGeneratorTest`, `ChangeUserRoleServiceTest`, `ForceVerifyEmailServiceTest`, `GetPlatformAccountServiceTest`, `UserNotFoundExceptionsTest` |
@@ -860,7 +877,7 @@ About 100 unit tests, no database or network needed (JUnit 5, AssertJ, Mockito):
 | Search | `GameSearchCriteriaTest`, `GameSearchSqlTest`, `QuickSearchServiceTest`, `BrowseFiltersServiceTest` |
 | Other | `SlugTest` |
 
-Persistence, SQL and the full HTTP flows are checked by hand with the Postman collection. Use `mvn clean …` rather than
+The full HTTP flows are checked by hand with the Postman collection. Use `mvn clean …` rather than
 plain `mvn compile` after pulling big changes: stale classes in `target/` can hide or invent errors.
 
 ## Troubleshooting
@@ -938,6 +955,8 @@ are public but not documented by Valve and could change.
 
 ## Changelog
 
+- **fix/reserved-names**: names that pose as Lavrel or its staff answer `400 username_reserved` (Lavrel anywhere in the name, staff words as any word, disguises with digits, look-alike letters or accents); staff accounts may use them.
+- **test/unlocks**: tests for saving unlocks (`RecordUnlocksServiceTest`, and `UserAchievementJpaRepositoryTest` on PostgreSQL with Testcontainers); README points Deploying to Render.
 - **feat/first-setup**: the first-setup screen is remembered per account, not per device: `setupCompleted` on `GET /api/currentuser`, `PUT /api/currentuser/setup` (V33; existing users count as done).
 - **fix/steam-link**: linking is safe to repeat (own account = success); `account_linked_elsewhere` replaces `account_already_linked`; link errors say whether the request expired, was invalid or was not confirmed.
 - **feat/achievement-picker**: games with unlocks and unlocked achievements per game (rarest or newest first) for the achievements shelf; my achievement shelves return their picked achievements with details.
