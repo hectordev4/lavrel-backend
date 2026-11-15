@@ -34,9 +34,26 @@ class UsernamesTest {
 
     @Test
     void rejectsNamesThatPoseAsStaffEvenWhenDisguised() {
-        assertThatThrownBy(() -> Usernames.validate("Admin")).isInstanceOf(InvalidUsernameException.class);
-        assertThatThrownBy(() -> Usernames.validate("a.d.m.i.n")).isInstanceOf(InvalidUsernameException.class);
-        assertThatThrownBy(() -> Usernames.validate("Lavrel Support")).isInstanceOf(InvalidUsernameException.class);
+        for (String name : new String[] {"Admin", "a.d.m.i.n", "Lavrel Support", "TheLavrelTeam", "L4vrel",
+                "Lavrel_Official", "Admin 2", "Admin123", "4dm1n", "\u0430dmin", "\u00c1dmin", "Head Admin",
+                "Official Steve", "Moderator Kai", "M0D", "S.U.P.P.O.R.T", "Staff", "Soporte", "xX_Admin_Xx"}) {
+            assertThatThrownBy(() -> Usernames.validate(name)).as(name)
+                    .isInstanceOf(UsernameReservedException.class);
+        }
+    }
+
+    @Test
+    void allowsOrdinaryNamesThatOnlyLookCloseToAReservedWord() {
+        for (String name : new String[] {"Support Main", "Badminton Pro", "Modern Gamer", "Team 7",
+                "Developer Diaries", "Laurel", "Steamroller", "Admiral Kim", "Mr Moderate"}) {
+            assertThat(Usernames.validate(name)).as(name).isEqualTo(name);
+        }
+    }
+
+    @Test
+    void staffMayUseReservedNames() {
+        assertThat(Usernames.validate("Lavrel Support", true)).isEqualTo("Lavrel Support");
+        assertThatThrownBy(() -> Usernames.validate("x", true)).isInstanceOf(InvalidUsernameException.class);
     }
 
     @Test

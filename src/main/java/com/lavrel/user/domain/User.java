@@ -74,10 +74,11 @@ public class User {
      * Changes the public display name.
      *
      * @return true if it changed, so the caller knows it has to save
-     * @throws InvalidUsernameException if it breaks the rules in Usernames; the current name is kept
+     * @throws InvalidUsernameException  if it breaks the rules in Usernames; the current name is kept
+     * @throws UsernameReservedException if it poses as Lavrel or its staff and this user is a plain USER
      */
     public boolean changeUsername(String requested) {
-        String valid = Usernames.validate(requested);
+        String valid = Usernames.validate(requested, role != Role.USER);
         if (valid.equals(username)) {
             return false;
         }
