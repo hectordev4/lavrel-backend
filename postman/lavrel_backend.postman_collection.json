@@ -881,7 +881,7 @@
             "username"
           ]
         },
-        "description": "A free display name: 2-32 characters, letters of any alphabet, digits, spaces and _ . - ' ! ? & # ( ) [ ]. Not unique (people are told apart by publicId). Names posing as staff (admin, support, lavrel...) are rejected with 400 invalid_username."
+        "description": "A free display name: 2-32 characters, letters of any alphabet, digits, spaces and _ . - ' ! ? & # ( ) [ ]. Not unique (people are told apart by publicId). Names posing as Lavrel or its staff (Lavrel anywhere, Admin, Support, Head Admin, 4dm1n...) are rejected with 400 username_reserved (see 107); staff (SUPPORT, ADMIN) may use them. Other rule breaks answer 400 invalid_username."
       },
       "response": []
     },
@@ -4241,6 +4241,52 @@
           ]
         },
         "description": "No body. Marks the one-time \"Make it yours\" screen as done for this account, on every device. Safe to repeat. An unverified e-mail gets 403 email_not_verified."
+      },
+      "response": []
+    },
+    {
+      "name": "107. Set a staff name (expect 400 username_reserved)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+              "pm.test(\"Error code is username_reserved\", function () { pm.expect(pm.response.json().error).to.eql(\"username_reserved\"); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"Lavrel Support\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/currentuser/username",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "currentuser",
+            "username"
+          ]
+        },
+        "description": "Run it with a plain USER account: the name is kept unchanged. With a SUPPORT or ADMIN account it answers 204 (staff may use staff names), so set your name back with 21 afterwards."
       },
       "response": []
     }

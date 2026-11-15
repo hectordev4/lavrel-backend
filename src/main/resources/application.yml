@@ -1,5 +1,5 @@
 server:
-  # Cloud Run (and most container hosts) tell the app which port to use in PORT; 8080 locally.
+  # Render (and most container hosts) tell the app which port to use in PORT (10000 on Render); 8080 locally.
   port: ${PORT:8080}
 
 spring:
