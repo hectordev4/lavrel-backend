@@ -37,6 +37,12 @@ public class AssistantUsageJdbcAdapter implements AssistantUsagePort {
     }
 
     @Override
+    public void release(String scope, LocalDate day) {
+        jdbc.update("UPDATE assistant_usage SET count = count - 1 WHERE scope = :scope AND day = :day AND count > 0",
+                new MapSqlParameterSource().addValue("scope", scope).addValue("day", Date.valueOf(day)));
+    }
+
+    @Override
     public int used(String scope, LocalDate day) {
         List<Integer> count = jdbc.queryForList(
                 "SELECT count FROM assistant_usage WHERE scope = :scope AND day = :day",

@@ -34,7 +34,6 @@ import com.lavrel.user.domain.CountryNotFoundException;
 import com.lavrel.user.domain.EmailAlreadyVerifiedException;
 import com.lavrel.user.domain.EmailVerificationNotAllowedException;
 import com.lavrel.user.domain.IdentityProviderUnavailableException;
-import com.lavrel.user.domain.InvalidIdentityProofException;
 import com.lavrel.user.domain.InvalidRoleChangeException;
 import com.lavrel.user.domain.InvalidUsernameException;
 import com.lavrel.user.domain.LastAdminException;
@@ -122,11 +121,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CountryNotFoundException.class)
     public ResponseEntity<ApiError> countryNotFound(CountryNotFoundException e) {
         return error(HttpStatus.BAD_REQUEST, "country_not_found", e.getMessage());
-    }
-
-    @ExceptionHandler(InvalidIdentityProofException.class)
-    public ResponseEntity<ApiError> invalidIdentityProof(InvalidIdentityProofException e) {
-        return error(HttpStatus.BAD_REQUEST, "invalid_identity_proof", e.getMessage());
     }
 
     @ExceptionHandler(InvalidRoleChangeException.class)
