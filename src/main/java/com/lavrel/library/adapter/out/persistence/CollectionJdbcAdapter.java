@@ -2,6 +2,7 @@ package com.lavrel.library.adapter.out.persistence;
 
 import com.lavrel.library.application.port.out.CollectionRepositoryPort;
 import com.lavrel.library.domain.Collection;
+import com.lavrel.library.domain.CollectionNameTakenException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -22,6 +24,9 @@ import org.springframework.stereotype.Component;
 public class CollectionJdbcAdapter implements CollectionRepositoryPort {
 
     private static final String COLUMNS = "id, public_id, user_id, name, position, created_at";
+
+    /** One name per user, ignoring capitals: (user_id, lower(name)), from V17. */
+    static final String UNIQUE_NAME = "uq_collection_user_name";
 
     private final NamedParameterJdbcTemplate jdbc;
 
@@ -54,26 +59,52 @@ public class CollectionJdbcAdapter implements CollectionRepositoryPort {
         return Boolean.TRUE.equals(taken);
     }
 
+    /**
+     * @throws CollectionNameTakenException if the user already has a collection with that name. The service checks
+     *         first (nameTaken), but two requests at the same moment both pass that check; the unique index then
+     *         stops the second one, and it gets the same answer instead of a 500.
+     */
     @Override
     public Collection save(Collection c) {
-        if (c.id() == null) {
-            Long id = jdbc.queryForObject("""
-                    INSERT INTO collection (public_id, user_id, name, position, created_at)
-                    VALUES (:publicId, :userId, :name, :position, :createdAt)
-                    RETURNING id
-                    """, params(c), Long.class);
-            return Collection.restore(id, c.publicId(), c.userId(), c.name(), c.position(), c.createdAt());
+        try {
+            if (c.id() == null) {
+                Long id = jdbc.queryForObject("""
+                        INSERT INTO collection (public_id, user_id, name, position, created_at)
+                        VALUES (:publicId, :userId, :name, :position, :createdAt)
+                        RETURNING id
+                        """, params(c), Long.class);
+                return Collection.restore(id, c.publicId(), c.userId(), c.name(), c.position(), c.createdAt());
+            }
+            jdbc.update("UPDATE collection SET name = :name, position = :position WHERE id = :id", params(c));
+            return c;
+        } catch (DataIntegrityViolationException e) {
+            throw nameTakenOrRethrow(e, c.name());
         }
-        jdbc.update("UPDATE collection SET name = :name, position = :position WHERE id = :id", params(c));
-        return c;
     }
 
     @Override
     public void saveAll(List<Collection> collections) {
         if (!collections.isEmpty()) {
+            // Only reorders (positions): names do not change here, so no name clash can happen
             jdbc.batchUpdate("UPDATE collection SET name = :name, position = :position WHERE id = :id",
                     collections.stream().map(CollectionJdbcAdapter::params).toArray(SqlParameterSource[]::new));
         }
+    }
+
+    /**
+     * A clash on the unique name index becomes CollectionNameTakenException (409 collection_name_taken); any other
+     * integrity error is thrown again unchanged. Spring reports a unique-index clash as DuplicateKeyException, a
+     * subclass of the one caught, so this also covers translators that only give the parent class. The index is
+     * found by its name in PostgreSQL's message ("violates unique constraint \"uq_collection_user_name\""), so the
+     * driver is not needed at compile time.
+     */
+    static RuntimeException nameTakenOrRethrow(DataIntegrityViolationException e, String name) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t.getMessage() != null && t.getMessage().contains(UNIQUE_NAME)) {
+                return new CollectionNameTakenException(name);
+            }
+        }
+        return e;
     }
 
     @Override

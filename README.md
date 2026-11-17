@@ -673,7 +673,8 @@ whether it is tracked or pinned. It takes the same filters as search and is sort
 
 **Collections** are named lists of the user's **own** games ("Platinum hunt", "Cozy games"); following games one does
 not own is what the tracking list is for. A game can be in several collections; up to 50 collections per user, names
-unique per user ignoring case. Collections are addressed by a public UUID. A game that leaves the library (an account is
+unique per user ignoring case. A name clash (create or rename) always answers `409 collection_name_taken`, even when two
+requests race: the second one is stopped by the database's unique index and gets the same answer, never a 500. Collections are addressed by a public UUID. A game that leaves the library (an account is
 unlinked) stays saved in its collections but is hidden until it is owned again. Browse one with
 `GET /api/currentuser/games?collection={id}`.
 
@@ -868,13 +869,14 @@ They need Docker running: without it they are **skipped**, not failed (GitHub CI
 
 | Area | Tests |
 |---|---|
-| Persistence (Testcontainers) | `UserAchievementJpaRepositoryTest` (an unlock stored twice is kept once; unlinking removes only that account's unlocks) |
+| Persistence (Testcontainers) | `UserAchievementJpaRepositoryTest` (an unlock stored twice is kept once; unlinking removes only that account's unlocks), `CollectionJdbcAdapterTest` (the same collection name with other capitals, created or renamed onto, is `CollectionNameTakenException`; other integrity errors stay as they are) |
 | Progress | `RecordUnlocksServiceTest`, `PickUnlocksServiceTest`, `PickUnlocksJdbcAdapterTest`, `GetMyProgressServiceTest`, `GetGameAchievementsServiceTest` |
 | Content policy and Steam import | `ContentPolicyTest`, `SteamGameScreeningTest`, `SteamImportRunTest`, `ContentExemptionServiceTest` |
 | Entities and mappers | `UserTest`, `PlatformAccountTest`, `GameTest`, `TrackedGameTest`, `UserMapperTest`, `PlatformAccountMapperTest`, `GameMapperTest` |
 | Accounts | `UsernamesTest`, `AuthenticateUserServiceTest`, `PublicIdAllocatorTest`, `UsernameGeneratorTest`, `ChangeUserRoleServiceTest`, `ForceVerifyEmailServiceTest`, `GetPlatformAccountServiceTest`, `UserNotFoundExceptionsTest` |
 | Tracking | `TrackGameServiceTest`, `QuickAccessTest`, `QuickAccessServiceTest` |
 | Search | `GameSearchCriteriaTest`, `GameSearchSqlTest`, `QuickSearchServiceTest`, `BrowseFiltersServiceTest` |
+| Library | `CollectionNameClashTest` (how a unique-name clash is read, no database needed) |
 | Other | `SlugTest` |
 
 The full HTTP flows are checked by hand with the Postman collection. Use `mvn clean …` rather than
@@ -955,6 +957,7 @@ are public but not documented by Valve and could change.
 
 ## Changelog
 
+- **fix/collection-name-race**: two requests creating or renaming onto the same collection name at the same moment answer `409 collection_name_taken` instead of a 500 (the adapter translates the unique-index clash; other integrity errors are untouched).
 - **fix/reserved-names**: names that pose as Lavrel or its staff answer `400 username_reserved` (Lavrel anywhere in the name, staff words as any word, disguises with digits, look-alike letters or accents); staff accounts may use them.
 - **test/unlocks**: tests for saving unlocks (`RecordUnlocksServiceTest`, and `UserAchievementJpaRepositoryTest` on PostgreSQL with Testcontainers); README points Deploying to Render.
 - **feat/first-setup**: the first-setup screen is remembered per account, not per device: `setupCompleted` on `GET /api/currentuser`, `PUT /api/currentuser/setup` (V33; existing users count as done).
