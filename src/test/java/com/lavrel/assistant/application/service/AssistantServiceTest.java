@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,7 +32,11 @@ import com.lavrel.catalog.domain.GameNotFoundException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -196,5 +202,133 @@ class AssistantServiceTest {
         assertThatThrownBy(() -> service.chat(USER, 9L,
                 List.of(new ChatMessage(ChatMessage.Role.USER, "Hi")), "en"))
                 .isInstanceOf(GameNotFoundException.class);
+    }
+
+    // ---- Only answers the player receives are counted ----
+
+    private static final LocalDate TODAY = LocalDate.of(2026, 11, 6);
+
+    @Test
+    void aFailedNewGuideGivesBackBothCounts() {
+        when(guides.find(10L, "en")).thenReturn(Optional.empty());
+        when(model.complete(anyString(), anyString(), anyInt()))
+                .thenThrow(new AssistantUnavailableException("Cloudflare allowance used up", null));
+
+        assertThatThrownBy(() -> service.guide(USER, 1L, 10L, false, "en"))
+                .isInstanceOf(AssistantUnavailableException.class);
+
+        verify(usage).release("user:7", TODAY);
+        verify(usage).release("all", TODAY);
+        verify(guides, never()).save(any());
+    }
+
+    @Test
+    void aFailedFollowUpGivesBackBothCounts() {
+        when(model.complete(anyString(), anyString(), anyInt()))
+                .thenThrow(new AssistantUnavailableException("Model retired", null));
+
+        assertThatThrownBy(() -> service.ask(USER, 1L, 10L, "Where is it?", false, "en"))
+                .isInstanceOf(AssistantUnavailableException.class);
+
+        verify(usage).release("user:7", TODAY);
+        verify(usage).release("all", TODAY);
+    }
+
+    @Test
+    void aFailedChatAnswerGivesBackBothCounts() {
+        when(achievements.publishedGameTitle(1L)).thenReturn(Optional.of("Hades"));
+        when(references.findForGame(anyLong(), anyString())).thenReturn(List.of());
+        when(model.chat(anyString(), any(), anyInt()))
+                .thenThrow(new AssistantUnavailableException("Empty answer", null));
+
+        assertThatThrownBy(() -> service.chat(USER, 1L,
+                List.of(new ChatMessage(ChatMessage.Role.USER, "Best weapon?")), "en"))
+                .isInstanceOf(AssistantUnavailableException.class);
+
+        verify(usage).release("user:7", TODAY);
+        verify(usage).release("all", TODAY);
+    }
+
+    @Test
+    void reachingTheGlobalLimitGivesBackThePlayersCount() {
+        when(guides.find(10L, "en")).thenReturn(Optional.empty());
+        when(usage.tryConsume(eq("all"), any(), anyInt())).thenReturn(false);
+
+        assertThatThrownBy(() -> service.guide(USER, 1L, 10L, false, "en"))
+                .isInstanceOf(AssistantUnavailableException.class);
+
+        verify(usage).release("user:7", TODAY);
+        verify(usage, never()).release(eq("all"), any());
+        verify(model, never()).complete(anyString(), anyString(), anyInt());
+    }
+
+    @Test
+    void aPlayerOverTheirLimitHasNothingToGiveBack() {
+        when(usage.tryConsume(eq("user:7"), any(), anyInt())).thenReturn(false);
+
+        assertThatThrownBy(() -> service.ask(USER, 1L, 10L, "Where is it?", false, "en"))
+                .isInstanceOf(AssistantQuotaExceededException.class);
+
+        verify(usage, never()).release(anyString(), any());
+        verify(usage, never()).tryConsume(eq("all"), any(), anyInt());
+    }
+
+    @Test
+    void aSuccessfulAnswerKeepsBothCounts() {
+        when(guides.find(10L, "en")).thenReturn(Optional.empty());
+
+        service.guide(USER, 1L, 10L, false, "en");
+
+        verify(usage).tryConsume("user:7", TODAY, 20);
+        verify(usage).tryConsume("all", TODAY, 400);
+        verify(usage, never()).release(anyString(), any());
+    }
+
+    @Test
+    void aSavedGuideNeverCountsAndNeverGivesBack() {
+        when(guides.find(10L, "en")).thenReturn(Optional.of(
+                new Guide(10L, "en", "Saved", true, List.of(), "m", NOW.minus(Duration.ofDays(1)), false)));
+
+        service.guide(USER, 1L, 10L, false, "en");
+
+        verifyNoMoreInteractions(usage);
+    }
+
+    @Test
+    void aFailedAnswerForAnAdminGivesBackOnlyTheirOwnCount() {
+        when(model.complete(anyString(), anyString(), anyInt()))
+                .thenThrow(new AssistantUnavailableException("Timeout", null));
+
+        assertThatThrownBy(() -> service.ask(ADMIN, 1L, 10L, "Where is it?", false, "en"))
+                .isInstanceOf(AssistantUnavailableException.class);
+
+        verify(usage).release("user:1", TODAY);
+        verify(usage, never()).release(eq("all"), any());
+    }
+
+    @Test
+    void aRequestThatCrossesMidnightGivesBackTheDayItCounted() {
+        // The clock reads 23:59:59 until the counting is done, then the next day.
+        Deque<Instant> times = new ArrayDeque<>(List.of(
+                Instant.parse("2026-11-06T23:59:59Z"), Instant.parse("2026-11-06T23:59:59Z")));
+        Clock crossing = new Clock() {
+            @Override public ZoneId getZone() { return ZoneOffset.UTC; }
+            @Override public Clock withZone(ZoneId zone) { return this; }
+            @Override public Instant instant() {
+                return times.isEmpty() ? Instant.parse("2026-11-07T00:00:05Z") : times.poll();
+            }
+        };
+        AssistantService late = new AssistantService(achievements, guides, references, model, usage, crossing,
+                20, 400, 600);
+        when(guides.find(10L, "en")).thenReturn(Optional.empty());
+        when(model.complete(anyString(), anyString(), anyInt()))
+                .thenThrow(new AssistantUnavailableException("Timeout", null));
+
+        assertThatThrownBy(() -> late.guide(USER, 1L, 10L, false, "en"))
+                .isInstanceOf(AssistantUnavailableException.class);
+
+        verify(usage).tryConsume("user:7", TODAY, 20);
+        verify(usage).release("user:7", TODAY);
+        verify(usage).release("all", TODAY);
     }
 }

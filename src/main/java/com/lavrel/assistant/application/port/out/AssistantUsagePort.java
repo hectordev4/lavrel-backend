@@ -8,5 +8,8 @@ public interface AssistantUsagePort {
     /** Adds one if the counter is below the limit. @return false (and nothing added) if it is already at the limit */
     boolean tryConsume(String scope, LocalDate day, int limit);
 
+    /** Gives one back (an answer that never reached the player). Never goes below 0; nothing happens without a row. */
+    void release(String scope, LocalDate day);
+
     int used(String scope, LocalDate day);
 }
