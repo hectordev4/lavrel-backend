@@ -797,7 +797,7 @@ Every error is `{"error": "<code>", "message": "<text>"}`. Validation errors add
 
 | Status | Codes |
 |---|---|
-| 400 | `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `username_reserved`, `country_not_found`, `invalid_identity_proof`, `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order`, `invalid_collection_name`, `invalid_collection_order`, `invalid_shelf`, `invalid_avatar`, `invalid_question`, `invalid_wiki_source` |
+| 400 | `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `username_reserved`, `country_not_found`, `link_expired`, `invalid_link_state`, `identity_not_confirmed` (Steam callback, only as JSON when `FRONTEND_BASE_URL` is empty), `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order`, `invalid_collection_name`, `invalid_collection_order`, `invalid_shelf`, `invalid_avatar`, `invalid_question`, `invalid_wiki_source` |
 | 401 | `unauthorized` (missing or invalid token) |
 | 403 | `email_not_verified`, `forbidden` |
 | 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `collection_not_found`, `profile_not_found`, `shelf_not_found`, `achievement_not_found`, `creator_not_found`, `not_found` |
@@ -957,6 +957,7 @@ are public but not documented by Valve and could change.
 
 ## Changelog
 
+- **chore/link-errors-cleanup**: removed the unreachable `invalid_identity_proof` handler (the Steam callback answers `link_expired`, `invalid_link_state` or `identity_not_confirmed` itself since `fix/steam-link`); `docs/DEPLOY.md` and Postman 25 updated to match.
 - **fix/collection-name-race**: two requests creating or renaming onto the same collection name at the same moment answer `409 collection_name_taken` instead of a 500 (the adapter translates the unique-index clash; other integrity errors are untouched).
 - **fix/reserved-names**: names that pose as Lavrel or its staff answer `400 username_reserved` (Lavrel anywhere in the name, staff words as any word, disguises with digits, look-alike letters or accents); staff accounts may use them.
 - **test/unlocks**: tests for saving unlocks (`RecordUnlocksServiceTest`, and `UserAchievementJpaRepositoryTest` on PostgreSQL with Testcontainers); README points Deploying to Render.

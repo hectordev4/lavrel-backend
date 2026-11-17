@@ -1013,7 +1013,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test(\"Rejected: 400 JSON, or 302 to the frontend error page\", function () { pm.expect(pm.response.code).to.be.oneOf([400, 302]); });",
-              "if (pm.response.code === 400) { pm.test(\"Error code is invalid_identity_proof\", function () { pm.expect(pm.response.json().error).to.eql(\"invalid_identity_proof\"); }); }"
+              "if (pm.response.code === 400) { pm.test(\"Error code is invalid_link_state\", function () { pm.expect(pm.response.json().error).to.eql(\"invalid_link_state\"); }); }",
+              "if (pm.response.code === 302) { pm.test(\"Redirects with reason=invalid_link_state\", function () { pm.expect(pm.response.headers.get(\"Location\")).to.include(\"status=error\").and.to.include(\"reason=invalid_link_state\"); }); }"
             ]
           }
         }
@@ -1036,9 +1037,12 @@
             "callback"
           ]
         },
-        "description": "The new generic callback path (public: platforms redirect the browser here without our token). Without the signed state the link is refused. With app.frontend.base-url set, the browser is redirected to {base}/steam/linked?status=error instead. /api/steam/callback still works the same."
+        "description": "The generic callback path (public: platforms redirect the browser here without our token). Without the signed state the link is refused: 400 invalid_link_state as JSON when FRONTEND_BASE_URL is empty, otherwise a 302 to {base}/steam/linked?status=error&reason=invalid_link_state (redirects are not followed here, so the test can read it). /api/steam/callback works the same."
       },
-      "response": []
+      "response": [],
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      }
     },
     {
       "name": "26. DEV (run once, right after 1): mark my test e-mail as verified",

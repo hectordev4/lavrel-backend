@@ -29,8 +29,8 @@ locally.
 | `STEAM_API_KEY`, `STEAM_STATE_SECRET` | As in the local `.env` |
 | `STEAM_CALLBACK_URL` | `https://lavrel.onrender.com/api/steam/callback` |
 | `FIREBASE_CREDENTIALS_PATH` | `/etc/secrets/firebase-service-account.json` (**not** the local `./secrets/...` path) |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:4200`, plus the frontend's URL once it is online (comma-separated) |
-| `FRONTEND_BASE_URL` | Empty until the frontend is online |
+| `CORS_ALLOWED_ORIGINS` | The frontend's URL, plus `http://localhost:4200` for local frontend work (comma-separated) |
+| `FRONTEND_BASE_URL` | The frontend's address (Vercel). The Steam callback sends the browser back to `{FRONTEND_BASE_URL}/steam/linked?status=...`; left empty, the callback answers JSON instead |
 | `PORT` | `10000` |
 | `JAVA_TOOL_OPTIONS` | `-XX:MaxRAMPercentage=60 -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -Xss512k -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError` |
 
@@ -65,9 +65,13 @@ In Postman, set `baseUrl` to `https://lavrel.onrender.com` and run requests 1, 2
 
 ## Releasing
 
-1. Work on `dev` (or a `feat/*` branch merged into `dev`); run `mvn clean test`.
+1. Work on `dev` (or a `feat/*` branch merged into `dev`); run `mvn clean test` with Docker running, so the
+   persistence tests (Testcontainers) run too.
 2. Open a pull request `dev` → `main` and merge it with **Create a merge commit**.
 3. Render deploys `main` automatically. Tag the release: `git tag -a v0.x.y -m "..."`, `git push origin v0.x.y`.
+4. Bring `dev` up to `main` before any new commit on `dev`: `git switch dev`, `git merge --ff-only origin/main`,
+   `git push origin dev`. If something was already pushed to `dev`, the fast-forward fails: with a clean working tree,
+   `git reset --hard origin/dev`, then `git merge --no-ff origin/main` and push. Never force-push `dev`.
 
 Flyway applies new migrations when the app starts, so a deploy with a new `V…sql` updates the Supabase schema by itself.
 
@@ -91,6 +95,7 @@ Flyway applies new migrations when the app starts, so a deploy with a new `V…s
 | `./secrets/firebase-service-account.json (No such file or directory)` | `FIREBASE_CREDENTIALS_PATH` still has the local path. Set `/etc/secrets/firebase-service-account.json` |
 | `Permission denied` on `/etc/secrets/...` | The container runs as a non-root user and cannot read the file; read the key from an environment variable instead (small code change) |
 | Restarts with "Out of memory" | Lower `MaxRAMPercentage` in `JAVA_TOOL_OPTIONS` to 50 |
-| Steam link fails with `invalid_identity_proof` | `STEAM_CALLBACK_URL` must be the Render URL above, not `localhost` |
+| Steam link ends with `reason=identity_not_confirmed` | `STEAM_CALLBACK_URL` must be the Render URL above, not `localhost` |
+| Steam link ends with `reason=link_expired` or `invalid_link_state` | The link was started more than 10 minutes ago, or `STEAM_STATE_SECRET` changed in between. Start again |
 | Achievement icons do not load | Steam moved its images: set `APP_STEAM_IMAGE_BASE` in Render to the host Steam's store pages use now, and redeploy |
 | Browser calls blocked by CORS | Add the frontend's origin to `CORS_ALLOWED_ORIGINS` |
