@@ -137,7 +137,7 @@ src/main/java/com/lavrel
 └── devtools/    fake data, one-time e-mail verification
 src/main/resources
 ├── application.yml
-└── db/migration/   V1 … V33
+└── db/migration/   V1 … V34
 ```
 
 ### The Steam import (`catalog/application/service/steam`)
@@ -247,10 +247,11 @@ Spring does not read `.env` by itself: `application.yml` imports it with
 | `app.auto-sync.every` | `PT6H` | An account is synced automatically at most this often |
 | `app.auto-sync.check-every` / `first-run-after` | `PT30M` / `PT10M` | How often the scheduler looks for accounts to sync, and the wait after start-up |
 | `app.auto-sync.active-days` / `batch-size` / `pause-ms` | `30` / `20` / `1000` | Only users seen in this many days; accounts per round; pause between accounts |
-| `app.assistant.model` | `@cf/meta/llama-3.1-8b-instruct-fp8` | The Workers AI model that writes answers (env `APP_ASSISTANT_MODEL`). Cloudflare retires models: if the log says the model is not offered (410), pick another from its catalog |
-| `app.assistant.user-daily-limit` / `global-daily-limit` | `20` / `400` | New answers per user per day, and for everyone together (protects the free daily AI allowance); saved guides are not counted |
-| `app.assistant.max-tokens` | `900` | Longest answer |
+| `app.assistant.model` | `@cf/google/gemma-4-26b-a4b-it` | The Workers AI model that writes answers (env `APP_ASSISTANT_MODEL`). Its "thinking" mode is always turned off. Cloudflare retires models: if the log says the model is not offered (410), pick another from its catalog |
+| `app.assistant.user-daily-limit` / `global-daily-limit` | `20` / `200` | New answers per user per day, and for everyone together (protects the free daily AI allowance); saved guides are not counted |
+| `app.assistant.max-tokens` | `1400` | Longest answer (sent as `max_completion_tokens`) |
 | `app.assistant.curated-max-tokens` | `1500` | Longest guide when an admin has one rewritten |
+| `app.assistant.search-terms-max-tokens` | `40` | The small call that turns a chat question into English search terms for the wiki (not counted against the player) |
 | `app.steam.image-base` | `https://shared.fastly.steamstatic.com/community_assets/images/apps/` | Host Steam achievement icons are served from (env `APP_STEAM_IMAGE_BASE`); applied to every icon at start-up |
 | `app.catalog.icon-bucket` | `achievement-icons` | Supabase Storage bucket for icons copied into our storage |
 | `app.dev.verify-email-uids` | not set | Development only: enables the one-time e-mail verification for these Firebase UIDs. Remove after use |
@@ -304,6 +305,7 @@ Flyway is the only source of schema changes. Never edit a migration that has bee
 | V31 | Achievement icons: `icon_path` (Steam reference), `icon_mirrored`, `app_setting` (Steam image host), trigger that serves every Steam icon from the current host |
 | V32 | `assistant_guide.curated` (guides an admin wrote or had rewritten; never expire) |
 | V33 | `users.setup_completed_at` (first-setup screen done); set to the migration time for every existing user |
+| V34 | Forgets the saved guides written by the previous model (Llama 3.1 8B); curated guides stay |
 
 There is no V8 on purpose (it was superseded by V9 before release). Flyway does not need consecutive numbers.
 Check what is applied with:
@@ -614,9 +616,13 @@ otherwise they see the generated one. Admins can remove a picture (`DELETE /api/
 On an achievement, a signed-in player asks **"how do I get this?"** and can then ask follow-up questions about it. In
 the AI tab, the player can also **chat freely about a game** (`POST /api/games/{gameId}/chat`).
 
-- **Model:** Cloudflare **Workers AI** (default `@cf/meta/llama-3.1-8b-instruct-fp8`), called by the backend through
-  `LanguageModelPort`, so it can be replaced by another provider with one adapter. The free plan gives a daily
-  allowance; when it is used up Cloudflare refuses (no bill) and players get `503 assistant_unavailable`.
+- **Model:** Cloudflare **Workers AI**, default **Gemma 4 26B** (`@cf/google/gemma-4-26b-a4b-it`), called by the
+  backend through `LanguageModelPort`, so it can be replaced by another provider with one adapter. Its "thinking" mode
+  is always off (`chat_template_kwargs.enable_thinking = false`), so the answer comes back in `message.content`; an
+  answer with only `reasoning` and no content counts as no answer (503, count given back). The limit is sent as
+  `max_completion_tokens`. The free plan gives 10,000 neurons a day (Gemma 4: about 9 per 1,000 input tokens and 28 per
+  1,000 output tokens, most of it the wiki text sent with each question); when it is used up Cloudflare refuses (no
+  bill) and players get `503 assistant_unavailable`.
 - **Knowledge:** when an admin approved a **reference wiki** for the game (a MediaWiki such as Fandom or wiki.gg whose
   license allows reuse, e.g. CC BY-SA), the backend searches it for the achievement, keeps the relevant part of the
   best pages and gives it to the model; the answer is `grounded` and lists its `sources` (page, link, license).
@@ -625,12 +631,26 @@ the AI tab, the player can also **chat freely about a game** (`POST /api/games/{
 - **Saved guides:** the first answer for an achievement (per language) is saved and reused for everyone: grounded ones
   for 30 days, others for 7. They never contain anything about the player. Follow-ups are never saved.
 - **Open chat:** the frontend keeps the conversation and sends it with each question (the last 12 messages are used);
-  the backend stores nothing of it. The game's approved wiki is searched with the question, so chat answers are
-  grounded and list their sources too. The model avoids story twists and hidden achievements unless asked.
-- **Tone and detail:** cheerful and encouraging, specific (places, items, requirements, order of steps), up to about
-  350 words. Answers do not end with a question: the frontend adds "Is there anything else I can help with?".
+  the backend stores nothing of it. The model avoids story twists and hidden achievements unless asked.
+- **English search terms:** wikis are in English and players often ask in their own language, so when the game has
+  an approved wiki a small extra model call (up to 40 tokens, thinking off) first turns the chat question into short
+  English search terms using the game's official names ("¿Dónde consigo el anillo de la serpiente de oro?" →
+  "Covetous Gold Serpent Ring location"). Those terms search the wiki and choose the word each page is cut around (up to
+  3,000 characters from each of the 2 best pages). The call is not counted against the player; if it fails, the
+  question itself is searched. Guides and follow-ups search with the achievement's name, which is already in English.
+- **With a wiki (grounded):** detailed and specific (places, items, requirements, order of steps), up to about 600
+  words, based on the wiki text.
+- **Without a wiki:** only a general approach, no specific locations, numbers or item lists; the answer says the
+  details could not be checked and suggests the game's wiki. Up to about 200 words.
+- **Names:** game names (items, bosses, places, NPCs) are kept exactly as the wiki writes them; names not in the wiki
+  are written in English, never translated ("Vordt of the Boreal Valley", not a word-for-word translation).
+- **"All of" questions** (all rings, all bosses...): roughly how many there are, a summary by category, and an
+  invitation to ask about a specific one.
+- **Tone:** cheerful and encouraging. Answers do not end with a question: the frontend adds "Is there anything else
+  I can help with?".
 - **Sources:** every grounded answer has `sources`: `[{"title", "url", "license"}]`, to show as links.
-- **Limits:** 20 new answers per player per day and 400 for everybody (saved guides are free), checked atomically in
+- **Limits:** 20 new answers per player per day and 200 for everybody (about the free allowance on an average day;
+  saved guides and the search-terms call are free), checked atomically in
   the database, on top of the general rate limiting. **Admins are not limited** (`unlimited: true` in the usage
   answer), so they can refine guides; Cloudflare's own free daily allowance still applies to everyone.
   **Only answers the player actually receives are counted:** the count is taken before the model is called (so a
@@ -881,6 +901,7 @@ They need Docker running: without it they are **skipped**, not failed (GitHub CI
 | Tracking | `TrackGameServiceTest`, `QuickAccessTest`, `QuickAccessServiceTest` |
 | Search | `GameSearchCriteriaTest`, `GameSearchSqlTest`, `QuickSearchServiceTest`, `BrowseFiltersServiceTest` |
 | Library | `CollectionNameClashTest` (how a unique-name clash is read, no database needed) |
+| AI assistant | `WorkersAiModelTest` (thinking off, `max_completion_tokens`, reasoning-only is no answer), `QuestionsAndPromptsTest` (with and without a wiki, names never translated, "all of" questions), `SearchTermsTest`, `WikiReferenceAdapterTest` (searches with the English terms), `AssistantServiceTest` (search terms, fallback, refunds) |
 | Other | `SlugTest` |
 
 The full HTTP flows are checked by hand with the Postman collection. Use `mvn clean …` rather than
@@ -895,7 +916,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `Could not resolve placeholder 'X'` at start | Variable missing from `.env`, or the app was not started from the project root |
 | Flyway: `canceling statement due to statement timeout` | A migration tried to alter `flyway_schema_history` while Flyway holds it. Do that by hand, after the first start |
 | Flyway: `Found non-empty schema(s) "public" but no schema history table` | Tables exist from a manual run. Drop them and let Flyway create them |
-| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V33 must be there) |
+| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V34 must be there) |
 | V16 fails (`permission denied` or `function unaccent does not exist`) | Enable `pg_trgm` and `unaccent` in Supabase (Database → Extensions) and restart |
 | `401` with a token that looks valid | The token and the service-account key belong to different Firebase projects. The server log gives the reason |
 | `403 email_not_verified` | The e-mail is not verified, or the token is older than the verification: refresh it (`getIdToken(true)`, or Postman request 1) |
@@ -904,7 +925,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `404` on a game that exists | It is not published yet (no details). Run **enrich** |
 | Sync answers `422 profile_private` | In Steam: Profile → Edit Profile → Privacy Settings → Game details: **Public** |
 | Link fails with `link_expired`, `invalid_link_state` or `identity_not_confirmed` | The link request expired (10 minutes), was damaged or started for another platform, or Steam did not confirm it (for example the callback URL differs from `STEAM_CALLBACK_URL`) |
-| AI answers stay general | Approve the game's wiki (85) so answers are grounded; admins can rewrite a guide with instructions (101); a bigger model (`APP_ASSISTANT_MODEL`, e.g. a 24B–26B instruct model from the catalog) gives more detail but uses the free allowance faster |
+| AI answers stay general | Without an approved wiki that is on purpose (no unchecked details): approve the game's wiki (85) so answers are grounded and detailed; admins can rewrite a guide with instructions (101) |
 | Assistant answers `503` and the log says Workers AI answered `410` / model not offered | Cloudflare retired the model: set `APP_ASSISTANT_MODEL` to one from https://developers.cloudflare.com/workers-ai/models/ |
 | Achievement icons do not load | Steam moved its images: set `APP_STEAM_IMAGE_BASE` to the host its store pages use now and restart; for one game, refresh its icons (Postman 96) or copy them into our storage (97) |
 | Browser calls blocked by CORS | Add the frontend's origin (e.g. `http://localhost:4200`) to `app.cors.allowed-origins` |
@@ -961,6 +982,9 @@ are public but not documented by Valve and could change.
 
 ## Changelog
 
+From 0.16.0 on, the `<version>` in `pom.xml` is the same as the release tag (`v0.16.0`).
+
+- **fix/ai-assistant** (0.16.0): Gemma 4 26B (`@cf/google/gemma-4-26b-a4b-it`) replaces the deprecated Llama 3.1 8B, thinking off and `max_completion_tokens`; answers up to 1,400 tokens; 200 answers a day for everybody; prompts keep game names as the wiki writes them, give only a general approach without a wiki, and summarize "all of" questions; chat questions become English search terms for the wiki; excerpts up to 3,000 characters; old saved guides forgotten (V34).
 - **fix/assistant-refund**: a failed AI answer (503) or the limit for everybody no longer uses up one of the player's daily answers: the counts are given back (`AssistantUsagePort.release`).
 - **chore/link-errors-cleanup**: removed the unreachable `invalid_identity_proof` handler (the Steam callback answers `link_expired`, `invalid_link_state` or `identity_not_confirmed` itself since `fix/steam-link`); `docs/DEPLOY.md` and Postman 25 updated to match.
 - **fix/collection-name-race**: two requests creating or renaming onto the same collection name at the same moment answer `409 collection_name_taken` instead of a 500 (the adapter translates the unique-index clash; other integrity errors are untouched).

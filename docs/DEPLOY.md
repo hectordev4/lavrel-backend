@@ -43,6 +43,11 @@ service → Connect → Outbound). Add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_A
 for local development, so one can be revoked without breaking the other. Never paste tokens anywhere else. Without
 them the assistant answers `503 assistant_unavailable` and everything else works.
 
+The model is `@cf/google/gemma-4-26b-a4b-it` by default. If `APP_ASSISTANT_MODEL` is set in Render, it wins over the
+default: set it to `@cf/google/gemma-4-26b-a4b-it` (or delete it) when moving off the retired Llama 3.1 8B. The free
+plan gives 10,000 neurons a day; 200 answers a day for everybody (`app.assistant.global-daily-limit`) is about that on
+an average day, and if Cloudflare runs out first players get a 503 and keep their daily answer.
+
 **Avatar uploads and icon copies (optional):** in Supabase, Storage → **New bucket** `avatars` and another
 `achievement-icons`, both marked **Public**. Then add two
 environment variables in Render: `SUPABASE_URL` (Project Settings → API → Project URL) and `SUPABASE_SERVICE_KEY`
@@ -69,6 +74,7 @@ In Postman, set `baseUrl` to `https://lavrel.onrender.com` and run requests 1, 2
    persistence tests (Testcontainers) run too.
 2. Open a pull request `dev` → `main` and merge it with **Create a merge commit**.
 3. Render deploys `main` automatically. Tag the release: `git tag -a v0.x.y -m "..."`, `git push origin v0.x.y`.
+   The `<version>` in `pom.xml` matches the tag (from 0.16.0 on): bump it in the last commit before the release.
 4. Bring `dev` up to `main` before any new commit on `dev`: `git switch dev`, `git merge --ff-only origin/main`,
    `git push origin dev`. If something was already pushed to `dev`, the fast-forward fails: with a clean working tree,
    `git reset --hard origin/dev`, then `git merge --no-ff origin/main` and push. Never force-push `dev`.

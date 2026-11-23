@@ -15,6 +15,7 @@ import com.lavrel.assistant.domain.Excerpt;
 import com.lavrel.assistant.domain.Guide;
 import com.lavrel.assistant.domain.GuidePrompts;
 import com.lavrel.assistant.domain.Questions;
+import com.lavrel.assistant.domain.SearchTerms;
 import com.lavrel.catalog.domain.GameNotFoundException;
 import java.time.Clock;
 import java.time.Instant;
@@ -23,6 +24,8 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -39,6 +42,8 @@ public class AssistantService implements AskAssistantUseCase {
 
     static final String EVERYONE = "all";
 
+    private static final Logger log = LoggerFactory.getLogger(AssistantService.class);
+
     private final AchievementContextPort achievements;
     private final GuideRepositoryPort guides;
     private final ReferencePort references;
@@ -48,12 +53,14 @@ public class AssistantService implements AskAssistantUseCase {
     private final int userDailyLimit;
     private final int globalDailyLimit;
     private final int maxTokens;
+    private final int searchTermsMaxTokens;
 
     public AssistantService(AchievementContextPort achievements, GuideRepositoryPort guides,
                             ReferencePort references, LanguageModelPort model, AssistantUsagePort usage, Clock clock,
                             @Value("${app.assistant.user-daily-limit:20}") int userDailyLimit,
                             @Value("${app.assistant.global-daily-limit:200}") int globalDailyLimit,
-                            @Value("${app.assistant.max-tokens:1400}") int maxTokens) {
+                            @Value("${app.assistant.max-tokens:1400}") int maxTokens,
+                            @Value("${app.assistant.search-terms-max-tokens:40}") int searchTermsMaxTokens) {
         this.achievements = achievements;
         this.guides = guides;
         this.references = references;
@@ -63,6 +70,7 @@ public class AssistantService implements AskAssistantUseCase {
         this.userDailyLimit = userDailyLimit;
         this.globalDailyLimit = globalDailyLimit;
         this.maxTokens = maxTokens;
+        this.searchTermsMaxTokens = searchTermsMaxTokens;
     }
 
     @Override
@@ -130,7 +138,8 @@ public class AssistantService implements AskAssistantUseCase {
         List<Excerpt> excerpts;
         String text;
         try {
-            excerpts = references.findForGame(gameId, question);
+            String terms = references.hasSource(gameId) ? searchTerms(gameTitle, question) : question;
+            excerpts = references.findForGame(gameId, terms);
             List<ChatMessage> messages = new ArrayList<>();
             messages.add(new ChatMessage(ChatMessage.Role.USER, GuidePrompts.chatReferences(gameTitle, excerpts)));
             messages.add(new ChatMessage(ChatMessage.Role.ASSISTANT,
@@ -149,6 +158,22 @@ public class AssistantService implements AskAssistantUseCase {
     public Usage usage(Requester requester) {
         int used = usage.used(userScope(requester.userId()), today());
         return requester.unlimited() ? new Usage(used, null, true) : new Usage(used, userDailyLimit, false);
+    }
+
+    /**
+     * The wiki is in English and players often ask in their own language, so a small model call turns the question
+     * into English search terms first. It is not counted against the player's daily limit (it only makes the answer
+     * better), and if it fails the player's question is searched as it is.
+     */
+    private String searchTerms(String gameTitle, String question) {
+        try {
+            String raw = model.complete(GuidePrompts.searchTermsSystem(),
+                    GuidePrompts.searchTermsQuestion(gameTitle, question), searchTermsMaxTokens);
+            return SearchTerms.clean(raw, question);
+        } catch (AssistantUnavailableException e) {
+            log.warn("Search terms for the wiki could not be made ({}); searching with the question", e.getMessage());
+            return question;
+        }
     }
 
     private AchievementContext achievement(long gameId, long achievementId) {
