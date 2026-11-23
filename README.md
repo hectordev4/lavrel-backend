@@ -865,7 +865,7 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 104, 105 | Achievement picker: games with unlocks (saves `pickerGameId`), unlocked achievements by rarity |
 | 106 | First setup done (run it twice: both `204`; then 2 shows `setupCompleted: true`) |
 | 107 | Staff name refused (`400 username_reserved`; with a plain USER account) |
-| 108 | Admin, Collection Runner with `postman/fandom-wikis.csv` as data: checks each game's Fandom wiki live (exists, name, CC BY-SA license, 50+ articles) and approves it like 85; anything else is skipped with the reason |
+| 108 | Admin, one **Send** (no Collection Runner or data file, which Postman charges for): checks each stored game's Fandom wiki live (exists, name, CC BY-SA license, 50+ articles) and approves it like 85; anything else is skipped with the reason. The list is at the top of its script, a copy of `postman/fandom-wikis.csv` |
 | 99, 100 | AI chat about a game: first question, then a follow-up with the conversation |
 | 101 – 103 | Admin: rewrite a guide with instructions, save your own text, forget it |
 | 96 – 98 | Admin: refresh a game's icons from Steam, copy them into our storage, serve them from Steam again |
@@ -985,6 +985,7 @@ are public but not documented by Valve and could change.
 
 From 0.16.0 on, the `<version>` in `pom.xml` is the same as the release tag (`v0.16.0`).
 
+- **chore/fandom-wikis-one-send** (0.16.1): Postman 108 approves all the Fandom wikis with one Send (the list is in its script), because Collection Runner data files are a paid Postman feature; it stops at once if the token is not an admin's.
 - **chore/fandom-wikis** (0.16.0): Postman 108 and `postman/fandom-wikis.csv` approve the Fandom wiki of each stored game in one run, after checking it live (CC BY-SA, name, size).
 - **fix/ai-assistant** (0.16.0): Gemma 4 26B (`@cf/google/gemma-4-26b-a4b-it`) replaces the deprecated Llama 3.1 8B, thinking off and `max_completion_tokens`; answers up to 1,400 tokens; 200 answers a day for everybody; prompts keep game names as the wiki writes them, give only a general approach without a wiki, and summarize "all of" questions; chat questions become English search terms for the wiki; excerpts up to 3,000 characters; old saved guides forgotten (V34).
 - **fix/assistant-refund**: a failed AI answer (503) or the limit for everybody no longer uses up one of the player's daily answers: the counts are given back (`AssistantUsagePort.release`).
