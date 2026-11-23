@@ -56,7 +56,7 @@ public class CurateGuidesService implements CurateGuidesUseCase {
         AchievementContext a = achievement(achievementId);
         String language = Questions.language(rawLanguage);
         List<Excerpt> excerpts = references.find(a);
-        String text = model.complete(GuidePrompts.system(language),
+        String text = model.complete(GuidePrompts.system(language, !excerpts.isEmpty()),
                 GuidePrompts.curatedGuide(a, excerpts, instructions.trim()), maxTokens);
         Instant now = clock.instant();
         Guide guide = new Guide(achievementId, language, text, !excerpts.isEmpty(),

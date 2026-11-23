@@ -84,7 +84,8 @@ public class AssistantService implements AskAssistantUseCase {
         String text;
         try {
             excerpts = references.find(a);
-            text = model.complete(GuidePrompts.system(language), GuidePrompts.guide(a, excerpts), maxTokens);
+            text = model.complete(GuidePrompts.system(language, !excerpts.isEmpty()), GuidePrompts.guide(a, excerpts),
+                    maxTokens);
         } catch (AssistantUnavailableException e) {
             refund(requester, day);
             throw e;
@@ -110,7 +111,7 @@ public class AssistantService implements AskAssistantUseCase {
         try {
             excerpts = references.find(a);
             String savedGuide = guides.find(achievementId, language).map(Guide::text).orElse(null);
-            text = model.complete(GuidePrompts.system(language),
+            text = model.complete(GuidePrompts.system(language, !excerpts.isEmpty()),
                     GuidePrompts.followUp(a, excerpts, savedGuide, question), maxTokens);
         } catch (AssistantUnavailableException e) {
             refund(requester, day);
@@ -135,7 +136,8 @@ public class AssistantService implements AskAssistantUseCase {
             messages.add(new ChatMessage(ChatMessage.Role.ASSISTANT,
                     "Got it! Ask me anything about " + gameTitle + "."));
             messages.addAll(conversation);
-            text = model.chat(GuidePrompts.chatSystem(language, gameTitle), messages, maxTokens);
+            text = model.chat(GuidePrompts.chatSystem(language, gameTitle, !excerpts.isEmpty()), messages,
+                    maxTokens);
         } catch (AssistantUnavailableException e) {
             refund(requester, day);
             throw e;
