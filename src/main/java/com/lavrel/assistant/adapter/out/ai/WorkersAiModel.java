@@ -25,6 +25,11 @@ import tools.jackson.databind.json.JsonMapper;
  * (a token limited to Workers AI) come from the environment; the model from app.assistant.model
  * (APP_ASSISTANT_MODEL). Cloudflare retires models (410), so check its catalog if answers stop. On the free plan
  * Cloudflare answers 429 when the daily allowance is used up, which becomes a 503 for the player, never a bill.
+ *
+ * Models with a "thinking" mode (Gemma 4) think by default: the reasoning goes to message.reasoning and content stays
+ * null, and if the token limit runs out while thinking there is no answer at all. So thinking is always turned off
+ * (chat_template_kwargs.enable_thinking = false), and the limit is sent as max_completion_tokens (max_tokens is
+ * deprecated for these models).
  */
 @Component
 public class WorkersAiModel implements LanguageModelPort {
@@ -39,7 +44,7 @@ public class WorkersAiModel implements LanguageModelPort {
 
     public WorkersAiModel(@Value("${app.assistant.cloudflare-account-id:${CLOUDFLARE_ACCOUNT_ID:}}") String accountId,
                           @Value("${app.assistant.cloudflare-token:${CLOUDFLARE_AI_TOKEN:}}") String token,
-                          @Value("${app.assistant.model:@cf/meta/llama-3.1-8b-instruct-fp8}") String modelName) {
+                          @Value("${app.assistant.model:@cf/google/gemma-4-26b-a4b-it}") String modelName) {
         this.accountId = accountId.trim();
         this.token = token.trim();
         this.modelName = modelName;
@@ -59,11 +64,7 @@ public class WorkersAiModel implements LanguageModelPort {
         if (accountId.isEmpty() || token.isEmpty()) {
             throw new AssistantUnavailableException("The assistant is not configured", null);
         }
-        Map<String, Object> body = Map.of(
-                "model", modelName,
-                "max_tokens", maxTokens,
-                "temperature", 0.3,
-                "messages", messages(system, messages));
+        Map<String, Object> body = body(system, messages, maxTokens);
         try {
             Reply reply = http.post()
                     .uri("https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/chat/completions", accountId)
@@ -76,6 +77,16 @@ public class WorkersAiModel implements LanguageModelPort {
         } catch (RestClientException e) {
             throw new AssistantUnavailableException("The model did not answer", e);
         }
+    }
+
+    /** The request: thinking off, so the answer always lands in message.content. */
+    Map<String, Object> body(String system, List<ChatMessage> messages, int maxTokens) {
+        return Map.of(
+                "model", modelName,
+                "max_completion_tokens", maxTokens,
+                "temperature", 0.3,
+                "chat_template_kwargs", Map.of("enable_thinking", false),
+                "messages", messages(system, messages));
     }
 
     private static List<Map<String, String>> messages(String system, List<ChatMessage> conversation) {
@@ -108,23 +119,35 @@ public class WorkersAiModel implements LanguageModelPort {
         return text.trim();
     }
 
-    /** choices[0].message.content (OpenAI format), or result.response (Workers AI's own format). */
+    /**
+     * choices[0].message.content (OpenAI format), or result.response (Workers AI's own format). A message with no
+     * content but with reasoning means the model only thought (thinking was on, or the limit ran out while thinking):
+     * no answer, so the player gets a 503 and their count back.
+     */
     @SuppressWarnings("unchecked")
     String extract(String json) {
+        Map<String, Object> root;
         try {
-            Map<String, Object> root = mapper.readValue(json, Map.class);
-            Object choices = root.get("choices");
-            if (choices instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof Map<?, ?> first
-                    && first.get("message") instanceof Map<?, ?> message && message.get("content") instanceof String s) {
-                return s;
-            }
-            if (root.get("result") instanceof Map<?, ?> result && result.get("response") instanceof String s) {
-                return s;
-            }
-            return null;
+            root = mapper.readValue(json, Map.class);
         } catch (RuntimeException e) {
             throw new AssistantUnavailableException("The model's answer could not be read", e);
         }
+        Object choices = root.get("choices");
+        if (choices instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof Map<?, ?> first
+                && first.get("message") instanceof Map<?, ?> message) {
+            if (message.get("content") instanceof String s) {
+                return s;
+            }
+            if (message.get("reasoning") instanceof String || message.get("reasoning_content") instanceof String) {
+                log.warn("Workers AI model '{}' returned only reasoning, no answer (finish_reason: {})", modelName,
+                        first.get("finish_reason"));
+                throw new AssistantUnavailableException("The model returned only its reasoning", null);
+            }
+        }
+        if (root.get("result") instanceof Map<?, ?> result && result.get("response") instanceof String s) {
+            return s;
+        }
+        return null;
     }
 
     private static String abbreviate(String s) {

@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +29,7 @@ import com.lavrel.assistant.domain.AssistantUnavailableException;
 import com.lavrel.assistant.domain.ChatMessage;
 import com.lavrel.assistant.domain.Excerpt;
 import com.lavrel.assistant.domain.Guide;
+import com.lavrel.assistant.domain.GuidePrompts;
 import com.lavrel.catalog.domain.GameNotFoundException;
 import java.time.Clock;
 import java.time.Duration;
@@ -55,7 +57,7 @@ class AssistantServiceTest {
     private final LanguageModelPort model = mock(LanguageModelPort.class);
     private final AssistantUsagePort usage = mock(AssistantUsagePort.class);
     private final AssistantService service = new AssistantService(achievements, guides, references, model, usage,
-            Clock.fixed(NOW, ZoneOffset.UTC), 20, 400, 600);
+            Clock.fixed(NOW, ZoneOffset.UTC), 20, 400, 600, 40);
 
     private static AchievementContext achievement(boolean hidden) {
         return new AchievementContext(1L, "Hades", 10L, "Escape", "Escape the Underworld", hidden);
@@ -319,7 +321,7 @@ class AssistantServiceTest {
             }
         };
         AssistantService late = new AssistantService(achievements, guides, references, model, usage, crossing,
-                20, 400, 600);
+                20, 400, 600, 40);
         when(guides.find(10L, "en")).thenReturn(Optional.empty());
         when(model.complete(anyString(), anyString(), anyInt()))
                 .thenThrow(new AssistantUnavailableException("Timeout", null));
@@ -330,5 +332,77 @@ class AssistantServiceTest {
         verify(usage).tryConsume("user:7", TODAY, 20);
         verify(usage).release("user:7", TODAY);
         verify(usage).release("all", TODAY);
+    }
+
+    // ---- English search terms for the game's wiki (chat) ----
+
+    private static final String SPANISH = "¿Dónde consigo el anillo de la serpiente de oro?";
+
+    private void aChatAboutDarkSouls(boolean hasWiki) {
+        when(achievements.publishedGameTitle(5L)).thenReturn(Optional.of("Dark Souls III"));
+        when(references.hasSource(5L)).thenReturn(hasWiki);
+        when(references.findForGame(anyLong(), anyString())).thenReturn(List.of(
+                new Excerpt("Covetous Gold Serpent Ring", "https://w/CGSR", "CC BY-SA 3.0", "Found in...")));
+        when(model.chat(anyString(), any(), anyInt())).thenReturn("En la Ciudad de Irithyll...");
+    }
+
+    @Test
+    void theWikiIsSearchedWithEnglishTermsMadeFromTheQuestion() {
+        aChatAboutDarkSouls(true);
+        when(model.complete(eq(GuidePrompts.searchTermsSystem()), anyString(), eq(40)))
+                .thenReturn("Covetous Gold Serpent Ring location");
+
+        Answer answer = service.chat(USER, 5L, List.of(new ChatMessage(ChatMessage.Role.USER, SPANISH)), "es");
+
+        verify(model).complete(GuidePrompts.searchTermsSystem(),
+                GuidePrompts.searchTermsQuestion("Dark Souls III", SPANISH), 40);
+        verify(references).findForGame(5L, "Covetous Gold Serpent Ring location");
+        assertThat(answer.grounded()).isTrue();
+    }
+
+    @Test
+    void ifTheSearchTermsCallFailsTheQuestionIsSearchedAsItIs() {
+        aChatAboutDarkSouls(true);
+        when(model.complete(eq(GuidePrompts.searchTermsSystem()), anyString(), anyInt()))
+                .thenThrow(new AssistantUnavailableException("Timeout", null));
+
+        Answer answer = service.chat(USER, 5L, List.of(new ChatMessage(ChatMessage.Role.USER, SPANISH)), "es");
+
+        verify(references).findForGame(5L, SPANISH);
+        assertThat(answer.text()).isEqualTo("En la Ciudad de Irithyll...");
+        verify(usage, never()).release(anyString(), any());
+    }
+
+    @Test
+    void withoutAnApprovedWikiNoSearchTermsAreMade() {
+        aChatAboutDarkSouls(false);
+
+        service.chat(USER, 5L, List.of(new ChatMessage(ChatMessage.Role.USER, SPANISH)), "es");
+
+        verify(model, never()).complete(anyString(), anyString(), anyInt());
+        verify(references).findForGame(5L, SPANISH);
+    }
+
+    @Test
+    void theSearchTermsCallIsNotCounted() {
+        aChatAboutDarkSouls(true);
+        when(model.complete(eq(GuidePrompts.searchTermsSystem()), anyString(), anyInt()))
+                .thenReturn("Covetous Gold Serpent Ring location");
+
+        service.chat(USER, 5L, List.of(new ChatMessage(ChatMessage.Role.USER, SPANISH)), "es");
+
+        verify(usage, times(1)).tryConsume(eq("user:7"), any(), anyInt());
+        verify(usage, times(1)).tryConsume(eq("all"), any(), anyInt());
+    }
+
+    @Test
+    void theAnswerUsesTheGroundedRulesOnlyWithReferenceText() {
+        aChatAboutDarkSouls(false);
+        when(references.findForGame(anyLong(), anyString())).thenReturn(List.of());
+
+        Answer answer = service.chat(USER, 5L, List.of(new ChatMessage(ChatMessage.Role.USER, SPANISH)), "es");
+
+        verify(model).chat(eq(GuidePrompts.chatSystem("es", "Dark Souls III", false)), any(), anyInt());
+        assertThat(answer.grounded()).isFalse();
     }
 }

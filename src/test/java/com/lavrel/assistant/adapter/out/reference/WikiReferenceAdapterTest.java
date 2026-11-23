@@ -49,4 +49,38 @@ class WikiReferenceAdapterTest {
             assertThat(e.license()).isEqualTo("CC BY-SA 3.0");
         });
     }
+
+    @Test
+    void aChatSearchesWithTheEnglishTermsAndCutsAroundTheirTellingWord() {
+        String api = "https://darksouls.fandom.com/api.php";
+        when(sources.find(5L)).thenReturn(Optional.of(new WikiSource(5L, api, "CC BY-SA 3.0", Instant.EPOCH)));
+        when(wiki.search(api, "Covetous Gold Serpent Ring location", WikiReferenceAdapter.PAGES))
+                .thenReturn(List.of("Covetous Gold Serpent Ring"));
+        String page = "Intro. ".repeat(1000) + "Covetous Gold Serpent Ring is found in Irithyll Dungeon.";
+        when(wiki.wikitext(api, "Covetous Gold Serpent Ring")).thenReturn(Optional.of(page));
+
+        List<Excerpt> excerpts = adapter.findForGame(5L, "Covetous Gold Serpent Ring location");
+
+        assertThat(excerpts).singleElement().satisfies(e -> {
+            assertThat(e.text()).contains("Irithyll Dungeon");
+            assertThat(e.text().length()).isLessThanOrEqualTo(WikiReferenceAdapter.CHARS_PER_PAGE + 2);
+        });
+        verify(wiki).search(api, "Covetous Gold Serpent Ring location", WikiReferenceAdapter.PAGES);
+    }
+
+    @Test
+    void excerptsAreUpTo3000Characters() {
+        assertThat(WikiReferenceAdapter.CHARS_PER_PAGE).isEqualTo(3000);
+        assertThat(WikiReferenceAdapter.PAGES).isEqualTo(2);
+    }
+
+    @Test
+    void knowsWhetherAGameHasAnApprovedWiki() {
+        when(sources.find(1L)).thenReturn(Optional.empty());
+        when(sources.find(5L)).thenReturn(Optional.of(
+                new WikiSource(5L, "https://darksouls.fandom.com/api.php", "CC BY-SA 3.0", Instant.EPOCH)));
+
+        assertThat(adapter.hasSource(1L)).isFalse();
+        assertThat(adapter.hasSource(5L)).isTrue();
+    }
 }

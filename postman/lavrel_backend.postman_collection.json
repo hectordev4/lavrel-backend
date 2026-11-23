@@ -4293,6 +4293,119 @@
         "description": "Run it with a plain USER account: the name is kept unchanged. With a SUPPORT or ADMIN account it answers 204 (staff may use staff names), so set your name back with 21 afterwards."
       },
       "response": []
+    },
+    {
+      "name": "108. Admin: approve Fandom wikis from a CSV (Collection Runner)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// First row of a run: start a new report. Last row: the report is in the collection variables",
+              "// wikiApproved and wikiSkipped (and in the console as APPROVED / SKIPPED lines).",
+              "if (pm.info.iteration === 0) {",
+              "  pm.collectionVariables.set(\"wikiApproved\", \"[]\");",
+              "  pm.collectionVariables.set(\"wikiSkipped\", \"[]\");",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Runs per row of postman/fandom-wikis.csv (Collection Runner -> Data). Checks the wiki live, then approves it.",
+              "(function () {",
+              "  const row = (k) => pm.iterationData.get(k) || pm.variables.get(k) || \"\";",
+              "  const gameId = row(\"gameId\"), title = row(\"title\"), apiUrl = row(\"apiUrl\"), expect = row(\"expect\").toLowerCase();",
+              "  const tally = (key, line) => {",
+              "    const list = JSON.parse(pm.collectionVariables.get(key) || \"[]\");",
+              "    list.push(line);",
+              "    pm.collectionVariables.set(key, JSON.stringify(list));",
+              "  };",
+              "  const skip = (reason) => {",
+              "    console.log(\"SKIPPED \" + gameId + \" \" + title + \": \" + reason);",
+              "    tally(\"wikiSkipped\", gameId + \" \" + title + \": \" + reason);",
+              "    pm.test(\"Skipped (\" + reason + \")\", function () {});",
+              "  };",
+              "  if (!gameId || !apiUrl) { return skip(\"no gameId/apiUrl: run this request with the CSV as data file\"); }",
+              "  if (pm.response.code !== 200) { return skip(\"the wiki answered \" + pm.response.code); }",
+              "  let q;",
+              "  try { q = pm.response.json().query; } catch (e) { return skip(\"not a MediaWiki answer (no such Fandom wiki?)\"); }",
+              "  if (!q || !q.general) { return skip(\"no site information\"); }",
+              "  const g = q.general, rights = q.rightsinfo || {}, stats = q.statistics || {};",
+              "  const rightsText = ((rights.url || \"\") + \" \" + (rights.text || \"\")).toLowerCase();",
+              "  if (!(g.server || \"\").includes(\".fandom.com\")) { return skip(\"not a fandom.com wiki (\" + g.server + \")\"); }",
+              "  if (expect && !(g.sitename || \"\").toLowerCase().includes(expect)) {",
+              "    return skip(\"the wiki is \\\"\" + g.sitename + \"\\\", expected \\\"\" + row(\"expect\") + \"\\\"\");",
+              "  }",
+              "  const bySa = /by-sa|share.?alike/.test(rightsText);",
+              "  const nonCommercial = /by-nc|noncommercial|non-commercial/.test(rightsText);",
+              "  if (!bySa || nonCommercial) { return skip(\"license is \\\"\" + (rights.text || rights.url) + \"\\\", not CC BY-SA\"); }",
+              "  if ((stats.articles || 0) < 50) { return skip(\"only \" + stats.articles + \" articles\"); }",
+              "  const version = ((rights.url || \"\").match(/by-sa\\/(\\d\\.\\d)/i) || [])[1];",
+              "  const license = \"CC BY-SA\" + (version ? \" \" + version : \"\");",
+              "  pm.sendRequest({",
+              "    url: pm.variables.get(\"baseUrl\") + \"/api/admin/assistant/wikis/\" + gameId,",
+              "    method: \"PUT\",",
+              "    header: { \"Content-Type\": \"application/json\", \"Authorization\": \"Bearer \" + pm.variables.get(\"idToken\") },",
+              "    body: { mode: \"raw\", raw: JSON.stringify({ apiUrl: apiUrl, license: license }) }",
+              "  }, function (err, res) {",
+              "    if (err || res.code !== 200) {",
+              "      const why = err ? String(err) : res.code + \" \" + res.text();",
+              "      console.log(\"FAILED \" + gameId + \" \" + title + \": \" + why);",
+              "      tally(\"wikiSkipped\", gameId + \" \" + title + \": the backend refused (\" + why + \")\");",
+              "      pm.test(\"Approved \" + title, function () { pm.expect.fail(why); });",
+              "      return;",
+              "    }",
+              "    console.log(\"APPROVED \" + gameId + \" \" + title + \" -> \" + g.sitename + \" (\" + license + \", \" + stats.articles + \" articles)\");",
+              "    tally(\"wikiApproved\", gameId + \" \" + title + \" -> \" + apiUrl + \" (\" + license + \")\");",
+              "    pm.test(\"Approved \" + title, function () {});",
+              "  });",
+              "})();"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{apiUrl}}?action=query&meta=siteinfo&siprop=general%7Crightsinfo%7Cstatistics&format=json&formatversion=2",
+          "host": [
+            "{{apiUrl}}"
+          ],
+          "query": [
+            {
+              "key": "action",
+              "value": "query"
+            },
+            {
+              "key": "meta",
+              "value": "siteinfo"
+            },
+            {
+              "key": "siprop",
+              "value": "general%7Crightsinfo%7Cstatistics"
+            },
+            {
+              "key": "format",
+              "value": "json"
+            },
+            {
+              "key": "formatversion",
+              "value": "2"
+            }
+          ]
+        },
+        "description": "Run it with the Collection Runner: select only this request, Data = postman/fandom-wikis.csv (columns gameId, title, apiUrl, expect), Delay 1000 ms, signed in as an ADMIN (run 1 first). For each row it asks the wiki itself (no Lavrel token is sent to Fandom) and approves it with the same call as 85 only if: it answers as a MediaWiki on fandom.com, its name contains `expect`, its license is CC BY-SA (not NC), and it has at least 50 articles. The license stored is the one the wiki declares. Anything else is SKIPPED with the reason, to handle by hand. Approving a wiki forgets that game's saved guides. Report: APPROVED / SKIPPED lines in the console, and the collection variables wikiApproved and wikiSkipped."
+      },
+      "response": []
     }
   ],
   "auth": {
@@ -4388,6 +4501,22 @@
     },
     {
       "key": "pickerGameId",
+      "value": ""
+    },
+    {
+      "key": "wikiApproved",
+      "value": ""
+    },
+    {
+      "key": "wikiSkipped",
+      "value": ""
+    },
+    {
+      "key": "apiUrl",
+      "value": ""
+    },
+    {
+      "key": "gameId",
       "value": ""
     }
   ]

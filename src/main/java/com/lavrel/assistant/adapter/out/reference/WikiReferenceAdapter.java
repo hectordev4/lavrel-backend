@@ -5,6 +5,7 @@ import com.lavrel.assistant.application.port.out.WikiClientPort;
 import com.lavrel.assistant.application.port.out.WikiSourceRepositoryPort;
 import com.lavrel.assistant.domain.AchievementContext;
 import com.lavrel.assistant.domain.Excerpt;
+import com.lavrel.assistant.domain.SearchTerms;
 import com.lavrel.assistant.domain.WikiSource;
 import com.lavrel.assistant.domain.WikiText;
 import java.util.ArrayList;
@@ -20,7 +21,7 @@ import org.springframework.stereotype.Component;
 public class WikiReferenceAdapter implements ReferencePort {
 
     static final int PAGES = 2;
-    static final int CHARS_PER_PAGE = 1800;
+    static final int CHARS_PER_PAGE = 3000;
 
     private final WikiSourceRepositoryPort sources;
     private final WikiClientPort wiki;
@@ -31,15 +32,21 @@ public class WikiReferenceAdapter implements ReferencePort {
     }
 
     @Override
-    public List<Excerpt> findForGame(long gameId, String question) {
+    public boolean hasSource(long gameId) {
+        return sources.find(gameId).isPresent();
+    }
+
+    /** Searches with the English terms and cuts each page around their most telling word. */
+    @Override
+    public List<Excerpt> findForGame(long gameId, String searchTerms) {
         Optional<WikiSource> source = sources.find(gameId);
         if (source.isEmpty()) {
             return List.of();
         }
         WikiSource s = source.get();
-        String focus = longestWord(question);
+        String focus = SearchTerms.focusWord(searchTerms);
         List<Excerpt> excerpts = new ArrayList<>();
-        for (String title : wiki.search(s.apiUrl(), question, PAGES)) {
+        for (String title : wiki.search(s.apiUrl(), searchTerms, PAGES)) {
             wiki.wikitext(s.apiUrl(), title)
                     .map(WikiText::clean)
                     .filter(text -> !text.isBlank())
@@ -47,17 +54,6 @@ public class WikiReferenceAdapter implements ReferencePort {
                     .ifPresent(text -> excerpts.add(new Excerpt(title, s.pageUrl(title), s.license(), text)));
         }
         return excerpts;
-    }
-
-    /** The most telling word of a question, to cut the page around it ("Malenia" in "how do I beat Malenia?"). */
-    static String longestWord(String question) {
-        String best = null;
-        for (String word : question.split("[^\\p{L}\\p{N}]+")) {
-            if (word.length() >= 4 && (best == null || word.length() > best.length())) {
-                best = word;
-            }
-        }
-        return best;
     }
 
     @Override

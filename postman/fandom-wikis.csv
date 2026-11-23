@@ -1,0 +1,69 @@
+gameId,title,apiUrl,expect
+2,ARK: Survival Evolved,https://ark.fandom.com/api.php,ARK
+4,Rocket League,https://rocketleague.fandom.com/api.php,Rocket League
+5,Monster Hunter: World,https://monsterhunter.fandom.com/api.php,Monster Hunter
+6,No Man's Sky,https://nomanssky.fandom.com/api.php,No Man
+7,CounterSide,https://counterside.fandom.com/api.php,CounterSide
+8,The Elder Scrolls V: Skyrim,https://elderscrolls.fandom.com/api.php,Elder Scrolls
+9,ELDEN RING,https://eldenring.fandom.com/api.php,Elden Ring
+10,Monster Hunter Wilds,https://monsterhunter.fandom.com/api.php,Monster Hunter
+11,Where Winds Meet,https://wherewindsmeet.fandom.com/api.php,Where Winds Meet
+12,Stronghold Kingdoms,https://strongholdkingdoms.fandom.com/api.php,Stronghold
+13,Lost Ark,https://lostark.fandom.com/api.php,Lost Ark
+16,Once Human,https://oncehuman.fandom.com/api.php,Once Human
+17,MONSTER HUNTER RISE,https://monsterhunter.fandom.com/api.php,Monster Hunter
+18,DARK SOULS III,https://darksouls.fandom.com/api.php,Dark Souls
+21,Garry's Mod,https://garrysmod.fandom.com/api.php,Garry
+22,Dungeon Defenders,https://dungeondefenders.fandom.com/api.php,Dungeon Defenders
+23,Robocraft,https://robocraft.fandom.com/api.php,Robocraft
+24,Dungeon Defenders II,https://dungeondefenders2.fandom.com/api.php,Dungeon Defenders
+25,ARK: Survival Ascended,https://ark.fandom.com/api.php,ARK
+26,Sons Of The Forest,https://sonsoftheforest.fandom.com/api.php,Sons of the Forest
+27,Palworld,https://palworld.fandom.com/api.php,Palworld
+28,"Warhammer 40,000: Darktide",https://darktide.fandom.com/api.php,Darktide
+29,Last Oasis,https://lastoasis.fandom.com/api.php,Last Oasis
+30,Counter-Strike 2,https://counterstrike.fandom.com/api.php,Counter-Strike
+32,How to Survive,https://howtosurvive.fandom.com/api.php,How to Survive
+34,PAYDAY 2,https://payday.fandom.com/api.php,PAYDAY
+35,Magicka,https://magicka.fandom.com/api.php,Magicka
+36,ARC Raiders,https://arc-raiders.fandom.com/api.php,ARC Raiders
+38,Grand Theft Auto V Legacy,https://gta.fandom.com/api.php,GTA
+39,Human Fall Flat,https://humanfallflat.fandom.com/api.php,Human Fall Flat
+40,The Witcher: Enhanced Edition Director's Cut,https://witcher.fandom.com/api.php,Witcher
+41,Horizon Zero Dawn Complete Edition,https://horizon.fandom.com/api.php,Horizon
+42,Dota 2,https://dota2.fandom.com/api.php,Dota
+43,PUBG: BATTLEGROUNDS,https://pubg.fandom.com/api.php,PUBG
+45,Apex Legends,https://apexlegends.fandom.com/api.php,Apex Legends
+48,Slay the Spire 2,https://slaythespire.fandom.com/api.php,Slay the Spire
+49,Geometry Dash,https://geometry-dash.fandom.com/api.php,Geometry Dash
+50,Overwatch,https://overwatch.fandom.com/api.php,Overwatch
+51,Tom Clancy's Rainbow Six Siege,https://rainbowsix.fandom.com/api.php,Rainbow Six
+52,Call of Duty,https://callofduty.fandom.com/api.php,Call of Duty
+55,Dead by Daylight,https://deadbydaylight.fandom.com/api.php,Dead by Daylight
+56,Valheim,https://valheim.fandom.com/api.php,Valheim
+58,Battlefield 6,https://battlefield.fandom.com/api.php,Battlefield
+59,HELLDIVERS 2,https://helldivers.fandom.com/api.php,Helldivers
+62,Limbus Company,https://limbuscompany.fandom.com/api.php,Limbus Company
+64,The Witcher 3: Wild Hunt - Remastered,https://witcher.fandom.com/api.php,Witcher
+66,Delta Force,https://deltaforce.fandom.com/api.php,Delta Force
+69,Rust,https://rust.fandom.com/api.php,Rust
+71,Left 4 Dead 2,https://left4dead.fandom.com/api.php,Left 4 Dead
+74,Euro Truck Simulator 2,https://truck-simulator.fandom.com/api.php,Truck Simulator
+75,BeamNG.drive,https://beamng.fandom.com/api.php,BeamNG
+77,Red Dead Redemption 2,https://reddead.fandom.com/api.php,Red Dead
+79,NARAKA: BLADEPOINT,https://narakabladepoint.fandom.com/api.php,Naraka
+80,Total War: WARHAMMER III,https://totalwarwarhammer.fandom.com/api.php,Total War
+84,Yu-Gi-Oh! Master Duel,https://yugioh.fandom.com/api.php,Yu-Gi-Oh
+85,Street Fighter 6,https://streetfighter.fandom.com/api.php,Street Fighter
+86,The Elder Scrolls V: Skyrim Special Edition,https://elderscrolls.fandom.com/api.php,Elder Scrolls
+87,The Outlast Trials,https://outlast.fandom.com/api.php,Outlast
+90,DayZ,https://dayz.fandom.com/api.php,DayZ
+93,Forza Horizon 6,https://forza.fandom.com/api.php,Forza
+95,Destiny 2,https://destiny.fandom.com/api.php,Destiny
+96,Farming Simulator 25,https://farmingsimulator.fandom.com/api.php,Farming Simulator
+98,Arena Breakout: Infinite,https://arenabreakoutinfinite.fandom.com/api.php,Arena Breakout
+99,The Sims 4,https://sims.fandom.com/api.php,Sims
+101,Wuthering Waves,https://wutheringwaves.fandom.com/api.php,Wuthering Waves
+102,Sid Meier's Civilization VI,https://civilization.fandom.com/api.php,Civilization
+106,Brawlhalla,https://brawlhalla.fandom.com/api.php,Brawlhalla
+107,Phasmophobia,https://phasmophobia.fandom.com/api.php,Phasmophobia
