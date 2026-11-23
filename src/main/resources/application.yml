@@ -50,6 +50,15 @@ app:
   stats:
     # Country percentages are hidden below this many players
     min-country-sample: 20
+  assistant:
+    # Cloudflare Workers AI. CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_AI_TOKEN come from the environment.
+    # Free plan: 10,000 neurons a day; Gemma 4 costs about 9 per 1,000 input tokens and 28 per 1,000 output tokens.
+    model: ${APP_ASSISTANT_MODEL:@cf/google/gemma-4-26b-a4b-it}
+    max-tokens: 1400                # longest answer (sent as max_completion_tokens; thinking is always off)
+    curated-max-tokens: 1500        # longest guide an admin has rewritten
+    search-terms-max-tokens: 40     # the small call that turns a chat question into English wiki search terms
+    user-daily-limit: 20            # new answers per player per day (UTC); saved guides and search terms are free
+    global-daily-limit: 200         # new answers for everybody together, about the free allowance on average
   sync:
     # New games imported per account sync; the user syncs again to continue (gamesPending)
     max-imports-per-sync: 50

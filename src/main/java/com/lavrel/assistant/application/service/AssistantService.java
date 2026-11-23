@@ -52,8 +52,8 @@ public class AssistantService implements AskAssistantUseCase {
     public AssistantService(AchievementContextPort achievements, GuideRepositoryPort guides,
                             ReferencePort references, LanguageModelPort model, AssistantUsagePort usage, Clock clock,
                             @Value("${app.assistant.user-daily-limit:20}") int userDailyLimit,
-                            @Value("${app.assistant.global-daily-limit:400}") int globalDailyLimit,
-                            @Value("${app.assistant.max-tokens:900}") int maxTokens) {
+                            @Value("${app.assistant.global-daily-limit:200}") int globalDailyLimit,
+                            @Value("${app.assistant.max-tokens:1400}") int maxTokens) {
         this.achievements = achievements;
         this.guides = guides;
         this.references = references;
