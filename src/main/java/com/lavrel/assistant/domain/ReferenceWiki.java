@@ -4,6 +4,7 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -21,6 +22,9 @@ import java.util.regex.Pattern;
  */
 public record ReferenceWiki(Long id, String apiUrl, String siteName, String license, String licenseUrl,
                             String articleUrl, Instant addedAt) {
+
+    /** What MediaWiki leaves unencoded in page addresses (wfUrlencode); '*' is never encoded by URLEncoder. */
+    private static final List<String> KEPT_IN_PAGE_URLS = List.of(";", "@", "$", "!", "(", ")", ",", "/", "~", ":");
 
     private static final Pattern HOST = Pattern.compile("[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+");
 
@@ -81,10 +85,16 @@ public record ReferenceWiki(Long id, String apiUrl, String siteName, String lice
         return URI.create(apiUrl).getHost();
     }
 
-    /** The address of a page of this wiki, for the answer's sources. */
+    /**
+     * The address of a page of this wiki, for the answer's sources. Encoded the way MediaWiki writes its own links
+     * (wfUrlencode): characters like ( ) , : / ! stay readable, so "Firelink Shrine (Dark Souls III)" links to
+     * .../wiki/Firelink_Shrine_(Dark_Souls_III), the same address the wiki shows.
+     */
     public String pageUrl(String title) {
-        String encoded = URLEncoder.encode(title.replace(' ', '_'), StandardCharsets.UTF_8)
-                .replace("%2F", "/").replace("%3A", ":");
+        String encoded = URLEncoder.encode(title.replace(' ', '_'), StandardCharsets.UTF_8);
+        for (String kept : KEPT_IN_PAGE_URLS) {
+            encoded = encoded.replace(URLEncoder.encode(kept, StandardCharsets.UTF_8), kept);
+        }
         if (articleUrl != null) {
             return articleUrl.replace("$1", encoded);
         }

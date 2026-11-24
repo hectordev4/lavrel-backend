@@ -38,6 +38,13 @@ class ReferenceWikiTest {
                 .isEqualTo("https://hades.fandom.com/wiki/Is_There_No_Escape%3F");
         assertThat(wiki("https://bg3.wiki/w/api.php", "https://bg3.wiki/wiki/$1").pageUrl("Shadowheart"))
                 .isEqualTo("https://bg3.wiki/wiki/Shadowheart");
+        // Written the way the wiki writes its own links: parentheses, commas and colons stay readable
+        assertThat(wiki("https://darksouls.fandom.com/api.php", null).pageUrl("Firelink Shrine (Dark Souls III)"))
+                .isEqualTo("https://darksouls.fandom.com/wiki/Firelink_Shrine_(Dark_Souls_III)");
+        assertThat(wiki("https://hades.fandom.com/api.php", null).pageUrl("Zagreus/Quotes: Hades, Part 2"))
+                .isEqualTo("https://hades.fandom.com/wiki/Zagreus/Quotes:_Hades,_Part_2");
+        assertThat(wiki("https://hades.fandom.com/api.php", null).pageUrl("Café & Co"))
+                .isEqualTo("https://hades.fandom.com/wiki/Caf%C3%A9_%26_Co");
     }
 
     @Test
