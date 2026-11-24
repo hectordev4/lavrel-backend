@@ -139,7 +139,7 @@ public class AssistantService implements AskAssistantUseCase {
         String text;
         try {
             String terms = references.hasSource(gameId) ? searchTerms(gameTitle, question) : question;
-            excerpts = references.findForGame(gameId, terms);
+            excerpts = references.findForGame(gameId, gameTitle, terms);
             List<ChatMessage> messages = new ArrayList<>();
             messages.add(new ChatMessage(ChatMessage.Role.USER, GuidePrompts.chatReferences(gameTitle, excerpts)));
             messages.add(new ChatMessage(ChatMessage.Role.ASSISTANT,
@@ -221,6 +221,6 @@ public class AssistantService implements AskAssistantUseCase {
     }
 
     private static List<Guide.Source> sources(List<Excerpt> excerpts) {
-        return excerpts.stream().map(e -> new Guide.Source(e.title(), e.url(), e.license())).distinct().toList();
+        return excerpts.stream().map(Excerpt::source).distinct().toList();
     }
 }

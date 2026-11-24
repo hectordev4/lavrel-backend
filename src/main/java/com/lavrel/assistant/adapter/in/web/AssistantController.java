@@ -90,7 +90,7 @@ public class AssistantController {
     }
 
     public record MessageRequest(@NotNull @Pattern(regexp = "(?i)user|assistant") String role,
-                                 @NotNull @Size(max = ChatMessage.MAX_ANSWER_LENGTH) String content) {
+                                 @NotNull @Size(max = ChatMessage.MAX_MESSAGE_LENGTH) String content) {
     }
 
     public record QuestionRequest(@NotBlank @Size(max = Questions.MAX_LENGTH * 2) String question, Boolean spoilers,

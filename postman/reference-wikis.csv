@@ -1,0 +1,87 @@
+gameId,title,apiUrl,expect,kind
+2,ARK: Survival Evolved,https://ark.fandom.com/api.php,ARK,fandom
+4,Rocket League,https://rocketleague.fandom.com/api.php,Rocket League,fandom
+5,Monster Hunter: World,https://monsterhunter.fandom.com/api.php,Monster Hunter,fandom
+6,No Man's Sky,https://nomanssky.fandom.com/api.php,No Man,fandom
+7,CounterSide,https://counterside.fandom.com/api.php,CounterSide,fandom
+8,The Elder Scrolls V: Skyrim,https://elderscrolls.fandom.com/api.php,Elder Scrolls,fandom
+9,ELDEN RING,https://eldenring.fandom.com/api.php,Elden Ring,fandom
+10,Monster Hunter Wilds,https://monsterhunter.fandom.com/api.php,Monster Hunter,fandom
+11,Where Winds Meet,https://wherewindsmeet.fandom.com/api.php,Where Winds Meet,fandom
+12,Stronghold Kingdoms,https://strongholdkingdoms.fandom.com/api.php,Stronghold,fandom
+13,Lost Ark,https://lostark.fandom.com/api.php,Lost Ark,fandom
+16,Once Human,https://oncehuman.fandom.com/api.php,Once Human,fandom
+17,MONSTER HUNTER RISE,https://monsterhunter.fandom.com/api.php,Monster Hunter,fandom
+18,DARK SOULS III,https://darksouls.fandom.com/api.php,Dark Souls,fandom
+21,Garry's Mod,https://garrysmod.fandom.com/api.php,Garry,fandom
+22,Dungeon Defenders,https://dungeondefenders.fandom.com/api.php,Dungeon Defenders,fandom
+23,Robocraft,https://robocraft.fandom.com/api.php,Robocraft,fandom
+24,Dungeon Defenders II,https://dungeondefenders2.fandom.com/api.php,Dungeon Defenders,fandom
+25,ARK: Survival Ascended,https://ark.fandom.com/api.php,ARK,fandom
+26,Sons Of The Forest,https://sonsoftheforest.fandom.com/api.php,Sons of the Forest,fandom
+27,Palworld,https://palworld.fandom.com/api.php,Palworld,fandom
+28,"Warhammer 40,000: Darktide",https://darktide.fandom.com/api.php,Darktide,fandom
+29,Last Oasis,https://lastoasis.fandom.com/api.php,Last Oasis,fandom
+30,Counter-Strike 2,https://counterstrike.fandom.com/api.php,Counter-Strike,fandom
+32,How to Survive,https://howtosurvive.fandom.com/api.php,How to Survive,fandom
+34,PAYDAY 2,https://payday.fandom.com/api.php,PAYDAY,fandom
+35,Magicka,https://magicka.fandom.com/api.php,Magicka,fandom
+36,ARC Raiders,https://arc-raiders.fandom.com/api.php,ARC Raiders,fandom
+38,Grand Theft Auto V Legacy,https://gta.fandom.com/api.php,GTA,fandom
+39,Human Fall Flat,https://humanfallflat.fandom.com/api.php,Human Fall Flat,fandom
+40,The Witcher: Enhanced Edition Director's Cut,https://witcher.fandom.com/api.php,Witcher,fandom
+41,Horizon Zero Dawn Complete Edition,https://horizon.fandom.com/api.php,Horizon,fandom
+42,Dota 2,https://dota2.fandom.com/api.php,Dota,fandom
+43,PUBG: BATTLEGROUNDS,https://pubg.fandom.com/api.php,PUBG,fandom
+45,Apex Legends,https://apexlegends.fandom.com/api.php,Apex Legends,fandom
+48,Slay the Spire 2,https://slaythespire.fandom.com/api.php,Slay the Spire,fandom
+49,Geometry Dash,https://geometry-dash.fandom.com/api.php,Geometry Dash,fandom
+50,Overwatch,https://overwatch.fandom.com/api.php,Overwatch,fandom
+51,Tom Clancy's Rainbow Six Siege,https://rainbowsix.fandom.com/api.php,Rainbow Six,fandom
+52,Call of Duty,https://callofduty.fandom.com/api.php,Call of Duty,fandom
+55,Dead by Daylight,https://deadbydaylight.fandom.com/api.php,Dead by Daylight,fandom
+56,Valheim,https://valheim.fandom.com/api.php,Valheim,fandom
+58,Battlefield 6,https://battlefield.fandom.com/api.php,Battlefield,fandom
+59,HELLDIVERS 2,https://helldivers.fandom.com/api.php,Helldivers,fandom
+62,Limbus Company,https://limbuscompany.fandom.com/api.php,Limbus Company,fandom
+64,The Witcher 3: Wild Hunt - Remastered,https://witcher.fandom.com/api.php,Witcher,fandom
+66,Delta Force,https://deltaforce.fandom.com/api.php,Delta Force,fandom
+69,Rust,https://rust.fandom.com/api.php,Rust,fandom
+71,Left 4 Dead 2,https://left4dead.fandom.com/api.php,Left 4 Dead,fandom
+74,Euro Truck Simulator 2,https://truck-simulator.fandom.com/api.php,Truck Simulator,fandom
+75,BeamNG.drive,https://beamng.fandom.com/api.php,BeamNG,fandom
+77,Red Dead Redemption 2,https://reddead.fandom.com/api.php,Red Dead,fandom
+79,NARAKA: BLADEPOINT,https://narakabladepoint.fandom.com/api.php,Naraka,fandom
+80,Total War: WARHAMMER III,https://totalwarwarhammer.fandom.com/api.php,Total War,fandom
+84,Yu-Gi-Oh! Master Duel,https://yugioh.fandom.com/api.php,Yu-Gi-Oh,fandom
+85,Street Fighter 6,https://streetfighter.fandom.com/api.php,Street Fighter,fandom
+86,The Elder Scrolls V: Skyrim Special Edition,https://elderscrolls.fandom.com/api.php,Elder Scrolls,fandom
+87,The Outlast Trials,https://outlast.fandom.com/api.php,Outlast,fandom
+90,DayZ,https://dayz.fandom.com/api.php,DayZ,fandom
+93,Forza Horizon 6,https://forza.fandom.com/api.php,Forza,fandom
+95,Destiny 2,https://destiny.fandom.com/api.php,Destiny,fandom
+96,Farming Simulator 25,https://farmingsimulator.fandom.com/api.php,Farming Simulator,fandom
+98,Arena Breakout: Infinite,https://arenabreakoutinfinite.fandom.com/api.php,Arena Breakout,fandom
+99,The Sims 4,https://sims.fandom.com/api.php,Sims,fandom
+101,Wuthering Waves,https://wutheringwaves.fandom.com/api.php,Wuthering Waves,fandom
+102,Sid Meier's Civilization VI,https://civilization.fandom.com/api.php,Civilization,fandom
+106,Brawlhalla,https://brawlhalla.fandom.com/api.php,Brawlhalla,fandom
+107,Phasmophobia,https://phasmophobia.fandom.com/api.php,Phasmophobia,fandom
+33,Project Zomboid,https://pzwiki.net/w/api.php,PZ,other
+44,Deadlock,https://deadlock.wiki/api.php,Deadlock,other
+54,Warframe,https://wiki.warframe.com/api.php,Warframe,other
+57,The Binding of Isaac: Rebirth,https://bindingofisaacrebirth.wiki.gg/api.php,Isaac,other
+61,Stardew Valley,https://stardewvalleywiki.com/mediawiki/api.php,Stardew,other
+63,Terraria,https://terraria.wiki.gg/api.php,Terraria,other
+65,Enshrouded,https://enshrouded.wiki.gg/api.php,Enshrouded,other
+70,Team Fortress 2,https://wiki.teamfortress.com/w/api.php,Team Fortress,other
+78,Baldur's Gate 3,https://bg3.wiki/w/api.php,Baldur,other
+82,Don't Starve Together,https://dontstarve.wiki.gg/api.php,Starve,other
+83,Hearts of Iron IV,https://hoi4.paradoxwikis.com/api.php,Hearts of Iron,other
+88,Risk of Rain 2,https://riskofrain2.wiki.gg/api.php,Risk of Rain,other
+100,RimWorld,https://rimworldwiki.com/api.php,RimWorld,other
+2,ARK: Survival Evolved,https://ark.wiki.gg/api.php,ARK,other
+25,ARK: Survival Ascended,https://ark.wiki.gg/api.php,ARK,other
+27,Palworld,https://palworld.wiki.gg/api.php,Palworld,other
+48,Slay the Spire 2,https://slaythespire.wiki.gg/api.php,Slay the Spire,other
+106,Brawlhalla,https://brawlhalla.wiki.gg/api.php,Brawlhalla,other

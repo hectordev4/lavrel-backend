@@ -1,5 +1,6 @@
 package com.lavrel.assistant.application.port.out;
 
+import com.lavrel.assistant.domain.WikiSiteInfo;
 import java.util.List;
 import java.util.Optional;
 
@@ -11,4 +12,7 @@ public interface WikiClientPort {
 
     /** The page's markup, following redirects. */
     Optional<String> wikitext(String apiUrl, String title);
+
+    /** What the wiki says about itself (name, server, license, page address, size); empty if it does not answer. */
+    Optional<WikiSiteInfo> siteInfo(String apiUrl);
 }

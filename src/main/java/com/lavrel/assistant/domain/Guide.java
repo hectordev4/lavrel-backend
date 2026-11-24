@@ -28,7 +28,16 @@ public record Guide(long achievementId, String language, String text, boolean gr
         return curated || createdAt.plus(grounded ? GROUNDED_LIFETIME : UNGROUNDED_LIFETIME).isAfter(now);
     }
 
-    /** Where the information came from, with its license, shown under the answer. */
-    public record Source(String title, String url, String license) {
+    /**
+     * Where the information came from, shown under the answer as the credit CC BY-SA asks for: the page and its link,
+     * the wiki's own name and its license (with the license's link). Guides saved before 0.17.0 have no site or
+     * licenseUrl (null).
+     */
+    public record Source(String title, String url, String site, String license, String licenseUrl) {
+
+        /** Without the wiki's name or license link. */
+        public Source(String title, String url, String license) {
+            this(title, url, null, license, null);
+        }
     }
 }

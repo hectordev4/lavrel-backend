@@ -13,7 +13,7 @@
 
     <groupId>com.lavrel</groupId>
     <artifactId>lavrel-backend</artifactId>
-    <version>0.16.1</version>
+    <version>0.17.0</version>
     <name>lavrel-backend</name>
 
     <properties>

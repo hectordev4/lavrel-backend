@@ -1,6 +1,7 @@
 package com.lavrel.assistant.adapter.out.reference;
 
 import com.lavrel.assistant.application.port.out.WikiClientPort;
+import com.lavrel.assistant.domain.WikiSiteInfo;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -18,7 +19,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The public MediaWiki API (action=query&list=search and action=parse&prop=wikitext). Only addresses an admin
- * approved reach here (WikiSource checks them); redirects are not followed to other hosts. Any failure means "no
+ * approved reach here (ReferenceWiki checks them); redirects are not followed to other hosts. Any failure means "no
  * reference" and the answer simply falls back to the model's own knowledge.
  */
 @Component
@@ -64,6 +65,32 @@ public class MediaWikiClient implements WikiClientPort {
             return Optional.of(wikitext);
         }
         return Optional.empty();
+    }
+
+    @Override
+    public Optional<WikiSiteInfo> siteInfo(String apiUrl) {
+        return parseSiteInfo(get(apiUrl + "?action=query&meta=siteinfo&format=json&formatversion=2&siprop={props}",
+                "general|rightsinfo|statistics"));
+    }
+
+    /** query.general (sitename, server, articlepath), query.rightsinfo (url, text), query.statistics (articles). */
+    static Optional<WikiSiteInfo> parseSiteInfo(Map<String, Object> root) {
+        if (!(root.get("query") instanceof Map<?, ?> query) || !(query.get("general") instanceof Map<?, ?> general)) {
+            return Optional.empty();
+        }
+        Map<?, ?> rights = query.get("rightsinfo") instanceof Map<?, ?> r ? r : Map.of();
+        Map<?, ?> stats = query.get("statistics") instanceof Map<?, ?> s ? s : Map.of();
+        String server = text(general.get("server"));
+        String articlePath = text(general.get("articlepath"));
+        String articleUrl = server != null && articlePath != null && articlePath.contains("$1")
+                ? (server.startsWith("//") ? "https:" + server : server) + articlePath : null;
+        long articles = stats.get("articles") instanceof Number n ? n.longValue() : 0;
+        return Optional.of(new WikiSiteInfo(text(general.get("sitename")), server, text(rights.get("url")),
+                text(rights.get("text")), articleUrl, articles));
+    }
+
+    private static String text(Object value) {
+        return value instanceof String s && !s.isBlank() ? s : null;
     }
 
     @SuppressWarnings("unchecked")
