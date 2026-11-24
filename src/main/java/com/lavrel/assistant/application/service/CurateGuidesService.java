@@ -60,7 +60,7 @@ public class CurateGuidesService implements CurateGuidesUseCase {
                 GuidePrompts.curatedGuide(a, excerpts, instructions.trim()), maxTokens);
         Instant now = clock.instant();
         Guide guide = new Guide(achievementId, language, text, !excerpts.isEmpty(),
-                excerpts.stream().map(e -> new Guide.Source(e.title(), e.url(), e.license())).distinct().toList(),
+                excerpts.stream().map(Excerpt::source).distinct().toList(),
                 model.modelName(), now, true);
         guides.save(guide);
         log.info("Guide of achievement {} ({}) rewritten by an admin", achievementId, language);

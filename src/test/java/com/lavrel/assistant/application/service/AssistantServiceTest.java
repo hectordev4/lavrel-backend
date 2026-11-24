@@ -182,7 +182,7 @@ class AssistantServiceTest {
     @Test
     void chatSendsTheConversationWithReferencesAndCounts() {
         when(achievements.publishedGameTitle(1L)).thenReturn(Optional.of("Hades"));
-        when(references.findForGame(1L, "Best weapon?"))
+        when(references.findForGame(1L, "Hades", "Best weapon?"))
                 .thenReturn(List.of(new Excerpt("Weapons", "https://w/Weapons", "CC BY-SA 3.0", "Stygius...")));
         when(model.chat(anyString(), any(), anyInt())).thenReturn("The Stygian Blade!");
 
@@ -239,7 +239,7 @@ class AssistantServiceTest {
     @Test
     void aFailedChatAnswerGivesBackBothCounts() {
         when(achievements.publishedGameTitle(1L)).thenReturn(Optional.of("Hades"));
-        when(references.findForGame(anyLong(), anyString())).thenReturn(List.of());
+        when(references.findForGame(anyLong(), anyString(), anyString())).thenReturn(List.of());
         when(model.chat(anyString(), any(), anyInt()))
                 .thenThrow(new AssistantUnavailableException("Empty answer", null));
 
@@ -341,7 +341,7 @@ class AssistantServiceTest {
     private void aChatAboutDarkSouls(boolean hasWiki) {
         when(achievements.publishedGameTitle(5L)).thenReturn(Optional.of("Dark Souls III"));
         when(references.hasSource(5L)).thenReturn(hasWiki);
-        when(references.findForGame(anyLong(), anyString())).thenReturn(List.of(
+        when(references.findForGame(anyLong(), anyString(), anyString())).thenReturn(List.of(
                 new Excerpt("Covetous Gold Serpent Ring", "https://w/CGSR", "CC BY-SA 3.0", "Found in...")));
         when(model.chat(anyString(), any(), anyInt())).thenReturn("En la Ciudad de Irithyll...");
     }
@@ -356,7 +356,7 @@ class AssistantServiceTest {
 
         verify(model).complete(GuidePrompts.searchTermsSystem(),
                 GuidePrompts.searchTermsQuestion("Dark Souls III", SPANISH), 40);
-        verify(references).findForGame(5L, "Covetous Gold Serpent Ring location");
+        verify(references).findForGame(5L, "Dark Souls III", "Covetous Gold Serpent Ring location");
         assertThat(answer.grounded()).isTrue();
     }
 
@@ -368,7 +368,7 @@ class AssistantServiceTest {
 
         Answer answer = service.chat(USER, 5L, List.of(new ChatMessage(ChatMessage.Role.USER, SPANISH)), "es");
 
-        verify(references).findForGame(5L, SPANISH);
+        verify(references).findForGame(5L, "Dark Souls III", SPANISH);
         assertThat(answer.text()).isEqualTo("En la Ciudad de Irithyll...");
         verify(usage, never()).release(anyString(), any());
     }
@@ -380,7 +380,7 @@ class AssistantServiceTest {
         service.chat(USER, 5L, List.of(new ChatMessage(ChatMessage.Role.USER, SPANISH)), "es");
 
         verify(model, never()).complete(anyString(), anyString(), anyInt());
-        verify(references).findForGame(5L, SPANISH);
+        verify(references).findForGame(5L, "Dark Souls III", SPANISH);
     }
 
     @Test
@@ -398,7 +398,7 @@ class AssistantServiceTest {
     @Test
     void theAnswerUsesTheGroundedRulesOnlyWithReferenceText() {
         aChatAboutDarkSouls(false);
-        when(references.findForGame(anyLong(), anyString())).thenReturn(List.of());
+        when(references.findForGame(anyLong(), anyString(), anyString())).thenReturn(List.of());
 
         Answer answer = service.chat(USER, 5L, List.of(new ChatMessage(ChatMessage.Role.USER, SPANISH)), "es");
 

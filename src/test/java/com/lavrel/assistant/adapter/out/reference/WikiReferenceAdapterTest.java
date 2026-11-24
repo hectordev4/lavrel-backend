@@ -3,6 +3,7 @@ package com.lavrel.assistant.adapter.out.reference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -12,6 +13,7 @@ import com.lavrel.assistant.application.port.out.WikiClientPort;
 import com.lavrel.assistant.application.port.out.ReferenceWikiRepositoryPort;
 import com.lavrel.assistant.domain.AchievementContext;
 import com.lavrel.assistant.domain.Excerpt;
+import com.lavrel.assistant.domain.Guide;
 import com.lavrel.assistant.domain.ReferenceWiki;
 import java.time.Instant;
 import java.util.List;
@@ -38,7 +40,7 @@ class WikiReferenceAdapterTest {
     void excerptsCarryTheirPageAndLicense() {
         String api = "https://hades.fandom.com/api.php";
         when(sources.findForGame(1L)).thenReturn(Optional.of(wiki(api)));
-        when(wiki.search(api, "Escape", WikiReferenceAdapter.PAGES)).thenReturn(List.of("Achievements"));
+        when(wiki.search(api, "Escape", WikiReferenceAdapter.SEARCH_HITS)).thenReturn(List.of("Achievements"));
         when(wiki.wikitext(api, "Achievements")).thenReturn(Optional.of("'''Escape''': beat [[Hades]]."));
 
         List<Excerpt> excerpts = adapter.find(A);
@@ -54,18 +56,18 @@ class WikiReferenceAdapterTest {
     void aChatSearchesWithTheEnglishTermsAndCutsAroundTheirTellingWord() {
         String api = "https://darksouls.fandom.com/api.php";
         when(sources.findForGame(5L)).thenReturn(Optional.of(wiki(api)));
-        when(wiki.search(api, "Covetous Gold Serpent Ring location", WikiReferenceAdapter.PAGES))
+        when(wiki.search(api, "Covetous Gold Serpent Ring location", WikiReferenceAdapter.SEARCH_HITS))
                 .thenReturn(List.of("Covetous Gold Serpent Ring"));
         String page = "Intro. ".repeat(1000) + "Covetous Gold Serpent Ring is found in Irithyll Dungeon.";
         when(wiki.wikitext(api, "Covetous Gold Serpent Ring")).thenReturn(Optional.of(page));
 
-        List<Excerpt> excerpts = adapter.findForGame(5L, "Covetous Gold Serpent Ring location");
+        List<Excerpt> excerpts = adapter.findForGame(5L, "Dark Souls III", "Covetous Gold Serpent Ring location");
 
         assertThat(excerpts).singleElement().satisfies(e -> {
             assertThat(e.text()).contains("Irithyll Dungeon");
             assertThat(e.text().length()).isLessThanOrEqualTo(WikiReferenceAdapter.CHARS_PER_PAGE + 2);
         });
-        verify(wiki).search(api, "Covetous Gold Serpent Ring location", WikiReferenceAdapter.PAGES);
+        verify(wiki).search(api, "Covetous Gold Serpent Ring location", WikiReferenceAdapter.SEARCH_HITS);
     }
 
     @Test
@@ -82,6 +84,26 @@ class WikiReferenceAdapterTest {
 
         assertThat(adapter.hasSource(1L)).isFalse();
         assertThat(adapter.hasSource(5L)).isTrue();
+    }
+
+    @Test
+    void onAFranchiseWikiThePagesAboutThisGameComeFirstWithTheWikisCredit() {
+        String api = "https://darksouls.fandom.com/api.php";
+        when(sources.findForGame(18L)).thenReturn(Optional.of(new ReferenceWiki(3L, api, "Dark Souls Wiki",
+                "CC BY-SA 3.0", "https://creativecommons.org/licenses/by-sa/3.0/", null, Instant.EPOCH)));
+        when(wiki.search(api, "Firelink Shrine", WikiReferenceAdapter.SEARCH_HITS)).thenReturn(List.of(
+                "Firelink Shrine", "Firelink Shrine (Dark Souls II)", "Firelink Shrine (Dark Souls III)"));
+        when(wiki.wikitext(eq(api), anyString())).thenReturn(Optional.of("Firelink Shrine is the hub."));
+
+        List<Excerpt> excerpts = adapter.findForGame(18L, "DARK SOULS\u2122 III", "Firelink Shrine");
+
+        assertThat(excerpts).extracting(Excerpt::title)
+                .containsExactly("Firelink Shrine (Dark Souls III)", "Firelink Shrine");
+        assertThat(excerpts.get(0).site()).isEqualTo("Dark Souls Wiki");
+        assertThat(excerpts.get(0).licenseUrl()).isEqualTo("https://creativecommons.org/licenses/by-sa/3.0/");
+        assertThat(excerpts.get(0).source()).isEqualTo(new Guide.Source("Firelink Shrine (Dark Souls III)",
+                "https://darksouls.fandom.com/wiki/Firelink_Shrine_(Dark_Souls_III)", "Dark Souls Wiki",
+                "CC BY-SA 3.0", "https://creativecommons.org/licenses/by-sa/3.0/"));
     }
 
     private static ReferenceWiki wiki(String apiUrl) {
