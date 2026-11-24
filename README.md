@@ -137,7 +137,7 @@ src/main/java/com/lavrel
 └── devtools/    fake data, one-time e-mail verification
 src/main/resources
 ├── application.yml
-└── db/migration/   V1 … V34
+└── db/migration/   V1 … V35
 ```
 
 ### The Steam import (`catalog/application/service/steam`)
@@ -297,7 +297,7 @@ Flyway is the only source of schema changes. Never edit a migration that has bee
 | V23 | `profile_shelf`, `profile_shelf_achievement` (profile shelves) |
 | V24 | Avatar kind and value on `profile_settings` |
 | V25 | `assistant_guide` (saved guides), `assistant_usage` (daily limits) |
-| V26 | `assistant_wiki` (approved reference wiki per game) |
+| V26 | `assistant_wiki` (approved reference wiki per game; replaced by V35) |
 | V27 | `profile_settings.show_library_size` (games-owned number on public profiles; off by default) |
 | V28 | `franchise_blocklist` (names marked as "not a franchise"; seeded with EA Play) |
 | V29 | `game.slug`: unique, permanent page addresses (`lavrel_slug()`, filled for existing games, set by a trigger for new ones) |
@@ -306,6 +306,7 @@ Flyway is the only source of schema changes. Never edit a migration that has bee
 | V32 | `assistant_guide.curated` (guides an admin wrote or had rewritten; never expire) |
 | V33 | `users.setup_completed_at` (first-setup screen done); set to the migration time for every existing user |
 | V34 | Forgets the saved guides written by the previous model (Llama 3.1 8B); curated guides stay |
+| V35 | `reference_wiki` (each wiki once: address, its own name, license, license link, page address) and `game_wiki` (each game linked to at most one wiki; a franchise wiki serves several games); moves `assistant_wiki` over and drops it |
 
 There is no V8 on purpose (it was superseded by V9 before release). Flyway does not need consecutive numbers.
 Check what is applied with:
@@ -528,7 +529,7 @@ a request for each, with a Collection Runner recipe for the long ones.
 | `PATCH /api/admin/users/{publicId}/role` | `{"role": "SUPPORT"}`: `USER`, `SUPPORT` or `ADMIN` |
 | `PUT` / `DELETE /api/admin/catalog/games/{gameId}/systems/{system}` | Mark or unmark a game as available on `pc`, `xbox` or `playstation` |
 | `DELETE /api/admin/users/{publicId}/avatar` | Remove someone's picture (moderation) |
-| `PUT` / `GET` / `DELETE /api/admin/assistant/wikis/{gameId}` | Approve, list or remove a game's reference wiki (`{"apiUrl", "license"}`) |
+| `PUT` / `GET` / `DELETE /api/admin/assistant/wikis/{gameId}` | Approve a game's reference wiki (`{"apiUrl"}`; the backend reads and checks the wiki's license), list every wiki with its games, or unlink a game's wiki |
 | `DELETE /api/admin/assistant/guides/games/{gameId}` | Forget a game's saved guides |
 | `POST /api/admin/assistant/guides/achievements/{achievementId}/rewrite` | `{"lang", "instructions"}`: rewrite the guide with your instructions, saved as curated |
 | `PUT` / `DELETE /api/admin/assistant/guides/achievements/{achievementId}` | `{"lang", "text"}`: save your own text as the curated guide / forget the guide (`?lang=`) |
@@ -623,9 +624,11 @@ the AI tab, the player can also **chat freely about a game** (`POST /api/games/{
   `max_completion_tokens`. The free plan gives 10,000 neurons a day (Gemma 4: about 9 per 1,000 input tokens and 28 per
   1,000 output tokens, most of it the wiki text sent with each question); when it is used up Cloudflare refuses (no
   bill) and players get `503 assistant_unavailable`.
-- **Knowledge:** when an admin approved a **reference wiki** for the game (a MediaWiki such as Fandom or wiki.gg whose
-  license allows reuse, e.g. CC BY-SA), the backend searches it for the achievement, keeps the relevant part of the
-  best pages and gives it to the model; the answer is `grounded` and lists its `sources` (page, link, license).
+- **Knowledge:** when an admin approved a **reference wiki** for the game (a MediaWiki such as Fandom, wiki.gg or a
+  game's own wiki, whose license is CC BY-SA), the backend searches it for the achievement, keeps the relevant part of
+  the best pages and gives it to the model; the answer is `grounded` and lists its `sources`. One wiki often covers a
+  whole franchise (the Dark Souls Wiki has I, II and III): of the search results, pages titled for this game
+  ("Firelink Shrine (Dark Souls III)") come first, then general pages, then pages titled for another game.
   Otherwise the model answers from its own knowledge, `grounded: false`, which the frontend should flag as possibly
   inaccurate. Wiki text is read live and never stored; only the answer and the links are.
 - **Saved guides:** the first answer for an achievement (per language) is saved and reused for everyone: grounded ones
@@ -648,7 +651,14 @@ the AI tab, the player can also **chat freely about a game** (`POST /api/games/{
   invitation to ask about a specific one.
 - **Tone:** cheerful and encouraging. Answers do not end with a question: the frontend adds "Is there anything else
   I can help with?".
-- **Sources:** every grounded answer has `sources`: `[{"title", "url", "license"}]`, to show as links.
+- **Sources:** every grounded answer has `sources`: `[{"title", "url", "site", "license", "licenseUrl"}]`: the page
+  and its link, the wiki's own name ("Dark Souls Wiki") and its license with the license's link: the credit CC BY-SA
+  asks for. `sources` is never empty when `grounded` is true, and always empty when it is false. Guides saved before
+  0.17.0, and wikis approved before V35 until they are approved again, have `site` and `licenseUrl` null.
+- **Chat history:** `messages` holds up to 40 messages of up to 20,000 characters each; the last 12 are used. Every
+  player message among them must be a valid question (1 to 500 characters); earlier answers are never refused for
+  their length, the backend cuts them to 3,000 characters before sending them to the model. Chat answers are never
+  `curated` (only saved guides can be).
 - **Limits:** 20 new answers per player per day and 200 for everybody (about the free allowance on an average day;
   saved guides and the search-terms call are free), checked atomically in
   the database, on top of the general rate limiting. **Admins are not limited** (`unlimited: true` in the usage
@@ -665,9 +675,14 @@ the AI tab, the player can also **chat freely about a game** (`POST /api/games/{
 - **Safety:** the model has **no tools**: it only receives text and returns text, so it cannot read or change
   anything. Reference text is fenced and declared as data, not instructions. Answers are Markdown: render them as
   text, never as raw HTML. Only the game and the achievement are sent, never the player's e-mail, name or progress.
-- **Admins** approve a wiki per game (`PUT /api/admin/assistant/wikis/{gameId}`), checking its license first. Only
-  public `https` domain names ending in `/api.php` are accepted (no IP addresses or internal hosts), and changing a
-  game's wiki forgets its saved guides.
+- **Admins** approve a wiki per game with only its address: `PUT /api/admin/assistant/wikis/{gameId}`
+  `{"apiUrl": "https://darksouls.fandom.com/api.php"}`. The backend asks the wiki itself (MediaWiki siteinfo) for its
+  name, license, license link and page address, and only accepts **CC BY-SA** (not non-commercial):
+  `400 wiki_license_not_allowed` otherwise, `502 wiki_unreachable` if it does not answer as a MediaWiki, `400
+  invalid_wiki_source` if the address is not a public `https` domain ending in `/api.php` or the wiki says it lives on
+  another host. A wiki is stored once and linked to each game that uses it; approving it again refreshes its name and
+  license. Giving a game a different wiki, or removing it, forgets that game's saved guides; a wiki no game uses is
+  removed. `GET` lists every wiki once with its `gameIds`. Postman 108 approves the whole catalog in one Send.
 
 ## Rate limiting and caching
 
@@ -821,14 +836,14 @@ Every error is `{"error": "<code>", "message": "<text>"}`. Validation errors add
 
 | Status | Codes |
 |---|---|
-| 400 | `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `username_reserved`, `country_not_found`, `link_expired`, `invalid_link_state`, `identity_not_confirmed` (Steam callback, only as JSON when `FRONTEND_BASE_URL` is empty), `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order`, `invalid_collection_name`, `invalid_collection_order`, `invalid_shelf`, `invalid_avatar`, `invalid_question`, `invalid_wiki_source` |
+| 400 | `wiki_license_not_allowed`, `validation_failed`, `malformed_request`, `invalid_parameter`, `missing_parameter`, `invalid_username`, `username_reserved`, `country_not_found`, `link_expired`, `invalid_link_state`, `identity_not_confirmed` (Steam callback, only as JSON when `FRONTEND_BASE_URL` is empty), `invalid_comparison`, `invalid_role_change`, `invalid_quick_access_order`, `invalid_collection_name`, `invalid_collection_order`, `invalid_shelf`, `invalid_avatar`, `invalid_question`, `invalid_wiki_source` |
 | 401 | `unauthorized` (missing or invalid token) |
 | 403 | `email_not_verified`, `forbidden` |
 | 404 | `user_not_found`, `platform_account_not_found`, `game_not_found`, `game_not_on_platform`, `game_not_tracked`, `game_not_in_catalog`, `collection_not_found`, `profile_not_found`, `shelf_not_found`, `achievement_not_found`, `creator_not_found`, `not_found` |
 | 409 | `account_linked_elsewhere`, `already_verified`, `quick_access_full`, `collection_name_taken`, `collection_limit_reached`, `last_admin`, `shelf_limit_reached` |
 | 422 | `profile_private`, `platform_not_supported`, `game_not_owned` |
 | 429 | `too_many_requests` (with a `Retry-After` header, in seconds), `assistant_quota_exceeded` |
-| 502 | `platform_unavailable`, `identity_provider_unavailable` |
+| 502 | `platform_unavailable`, `identity_provider_unavailable`, `wiki_unreachable` |
 | 503 | `avatar_storage_unavailable`, `storage_unavailable`, `assistant_unavailable` |
 
 ## Postman collection
@@ -865,14 +880,14 @@ Run request **1** first: it stores the ID token, which expires after about an ho
 | 104, 105 | Achievement picker: games with unlocks (saves `pickerGameId`), unlocked achievements by rarity |
 | 106 | First setup done (run it twice: both `204`; then 2 shows `setupCompleted: true`) |
 | 107 | Staff name refused (`400 username_reserved`; with a plain USER account) |
-| 108 | Admin, Collection Runner with `postman/fandom-wikis.csv` as data: checks each game's Fandom wiki live (exists, name, CC BY-SA license, 50+ articles) and approves it like 85; anything else is skipped with the reason |
+| 108 | Admin, one **Send** (no Collection Runner or data file, which Postman charges for): approves the reference wiki of each stored game, Fandom first, then wiki.gg and other wikis for games still without one; games that already have another wiki are kept. Postman checks the name and size, the backend the license. The list is at the top of its script, a copy of `postman/reference-wikis.csv` |
 | 99, 100 | AI chat about a game: first question, then a follow-up with the conversation |
 | 101 – 103 | Admin: rewrite a guide with instructions, save your own text, forget it |
 | 96 – 98 | Admin: refresh a game's icons from Steam, copy them into our storage, serve them from Steam again |
 | 94, 95 | Home: my totals, my latest unlocks |
 | 90 – 93 | Admin: franchise clean-up (dry run, apply), block a creator as not a franchise, list blocked |
 | 81 – 84 | Assistant: guide (54 saves the achievement id), the same guide saved, a follow-up, my usage |
-| 85 – 88 | Admin: approve a reference wiki (check its license), list, forget saved guides, remove |
+| 85 – 88 | Admin: approve a reference wiki (only `apiUrl`; the backend checks the license), list wikis with their games, forget saved guides, unlink |
 | 66 – 80 | Profile settings, shelves (stats, recently played, picked achievements), public profile and player search without token, avatar gallery, pick, upload (choose a file in the Body tab), reset; private again |
 | 58 – 60 | Unlink my account; delete my account without confirm (safety check); **delete my account for good** (test accounts only) |
 
@@ -917,7 +932,7 @@ plain `mvn compile` after pulling big changes: stale classes in `target/` can hi
 | `Could not resolve placeholder 'X'` at start | Variable missing from `.env`, or the app was not started from the project root |
 | Flyway: `canceling statement due to statement timeout` | A migration tried to alter `flyway_schema_history` while Flyway holds it. Do that by hand, after the first start |
 | Flyway: `Found non-empty schema(s) "public" but no schema history table` | Tables exist from a manual run. Drop them and let Flyway create them |
-| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V34 must be there) |
+| Flyway: applied migration not resolved locally | A migration file is missing from `db/migration` (all of V1–V35 must be there) |
 | V16 fails (`permission denied` or `function unaccent does not exist`) | Enable `pg_trgm` and `unaccent` in Supabase (Database → Extensions) and restart |
 | `401` with a token that looks valid | The token and the service-account key belong to different Firebase projects. The server log gives the reason |
 | `403 email_not_verified` | The e-mail is not verified, or the token is older than the verification: refresh it (`getIdToken(true)`, or Postman request 1) |
@@ -985,6 +1000,8 @@ are public but not documented by Valve and could change.
 
 From 0.16.0 on, the `<version>` in `pom.xml` is the same as the release tag (`v0.16.0`).
 
+- **feat/reference-wikis** (0.17.0): wikis stored once and shared by the games that use them (`reference_wiki` + `game_wiki`, V35), so a franchise wiki serves every game; the backend reads each wiki's own name and license when it is approved and only accepts CC BY-SA (`wiki_license_not_allowed`, `wiki_unreachable`); `sources` gain `site` and `licenseUrl` for the credit, and their links are written the way the wiki writes its own (`Firelink_Shrine_(Dark_Souls_III)`); on franchise wikis the pages about this game come first; earlier chat answers are cut instead of refused (messages up to 20,000 characters); Postman 108 also uses wiki.gg and other wikis for games without one.
+- **chore/fandom-wikis-one-send** (0.16.1): Postman 108 approves all the Fandom wikis with one Send (the list is in its script), because Collection Runner data files are a paid Postman feature; it stops at once if the token is not an admin's.
 - **chore/fandom-wikis** (0.16.0): Postman 108 and `postman/fandom-wikis.csv` approve the Fandom wiki of each stored game in one run, after checking it live (CC BY-SA, name, size).
 - **fix/ai-assistant** (0.16.0): Gemma 4 26B (`@cf/google/gemma-4-26b-a4b-it`) replaces the deprecated Llama 3.1 8B, thinking off and `max_completion_tokens`; answers up to 1,400 tokens; 200 answers a day for everybody; prompts keep game names as the wiki writes them, give only a general approach without a wiki, and summarize "all of" questions; chat questions become English search terms for the wiki; excerpts up to 3,000 characters; old saved guides forgotten (V34).
 - **fix/assistant-refund**: a failed AI answer (503) or the limit for everybody no longer uses up one of the player's daily answers: the counts are given back (`AssistantUsagePort.release`).

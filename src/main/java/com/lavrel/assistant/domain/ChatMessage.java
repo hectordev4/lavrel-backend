@@ -10,7 +10,10 @@ import java.util.Objects;
 public record ChatMessage(Role role, String content) {
 
     public static final int MAX_MESSAGES = 12;
-    public static final int MAX_ANSWER_LENGTH = 4000;
+    /** Longest message the frontend may send back (an earlier answer, as it came); longer ones are a 400. */
+    public static final int MAX_MESSAGE_LENGTH = 20_000;
+    /** Earlier answers are cut to this before they go to the model, to keep each question's cost down. */
+    public static final int MAX_ANSWER_LENGTH = 3000;
 
     public enum Role {
         USER, ASSISTANT
@@ -22,10 +25,12 @@ public record ChatMessage(Role role, String content) {
     }
 
     /**
-     * Keeps the last {@value #MAX_MESSAGES} messages, cleans the player's ones like any question, and requires the last
-     * one to be the player's.
-     * @throws InvalidQuestionException if the conversation is empty, does not end with a question, or has a message
-     *                                  that is too long
+     * Keeps the last {@value #MAX_MESSAGES} messages, cleans the player's ones like any question (each one: 1 to 500
+     * characters), and requires the last one to be the player's. Earlier answers are never refused for their length:
+     * the ones longer than {@value #MAX_ANSWER_LENGTH} characters are cut, since only their gist matters for the next
+     * question.
+     * @throws InvalidQuestionException if the conversation is empty, does not end with a question, or one of the
+     *                                  player's messages in the last 12 breaks the question rules
      */
     public static List<ChatMessage> validConversation(List<ChatMessage> raw) {
         if (raw == null || raw.isEmpty()) {
@@ -40,7 +45,7 @@ public record ChatMessage(Role role, String content) {
                 return new ChatMessage(Role.USER, Questions.clean(m.content()));
             }
             if (m.content().length() > MAX_ANSWER_LENGTH) {
-                throw new InvalidQuestionException("An earlier answer is too long to send back");
+                return new ChatMessage(Role.ASSISTANT, m.content().substring(0, MAX_ANSWER_LENGTH) + "…");
             }
             return m;
         }).toList();

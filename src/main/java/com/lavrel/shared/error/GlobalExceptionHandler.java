@@ -5,6 +5,8 @@ import com.lavrel.assistant.domain.AssistantQuotaExceededException;
 import com.lavrel.assistant.domain.AssistantUnavailableException;
 import com.lavrel.assistant.domain.InvalidQuestionException;
 import com.lavrel.assistant.domain.InvalidWikiSourceException;
+import com.lavrel.assistant.domain.WikiLicenseNotAllowedException;
+import com.lavrel.assistant.domain.WikiUnreachableException;
 import com.lavrel.catalog.domain.CreatorNotFoundException;
 import com.lavrel.catalog.domain.GameNotFoundException;
 import com.lavrel.catalog.domain.GameNotOnPlatformException;
@@ -151,6 +153,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidWikiSourceException.class)
     public ResponseEntity<ApiError> invalidWikiSource(InvalidWikiSourceException e) {
         return error(HttpStatus.BAD_REQUEST, "invalid_wiki_source", e.getMessage());
+    }
+
+    @ExceptionHandler(WikiLicenseNotAllowedException.class)
+    public ResponseEntity<ApiError> wikiLicenseNotAllowed(WikiLicenseNotAllowedException e) {
+        return error(HttpStatus.BAD_REQUEST, "wiki_license_not_allowed", e.getMessage());
+    }
+
+    @ExceptionHandler(WikiUnreachableException.class)
+    public ResponseEntity<ApiError> wikiUnreachable(WikiUnreachableException e) {
+        return error(HttpStatus.BAD_GATEWAY, "wiki_unreachable", e.getMessage());
     }
 
     @ExceptionHandler(CreatorNotFoundException.class)

@@ -37,4 +37,23 @@ class ChatMessageTest {
         assertThatThrownBy(() -> ChatMessage.validConversation(List.of(new ChatMessage(Role.USER, "x".repeat(501)))))
                 .isInstanceOf(InvalidQuestionException.class);
     }
+
+    @Test
+    void everyPlayerMessageInTheLast12MustBeAValidQuestion() {
+        assertThatThrownBy(() -> ChatMessage.validConversation(List.of(
+                new ChatMessage(Role.USER, "x".repeat(501)),
+                new ChatMessage(Role.ASSISTANT, "Hello!"),
+                new ChatMessage(Role.USER, "Best weapon?")))).isInstanceOf(InvalidQuestionException.class);
+    }
+
+    @Test
+    void longEarlierAnswersAreCutNotRefused() {
+        List<ChatMessage> kept = ChatMessage.validConversation(List.of(
+                new ChatMessage(Role.USER, "All bosses?"),
+                new ChatMessage(Role.ASSISTANT, "a".repeat(9000)),
+                new ChatMessage(Role.USER, "And the first one?")));
+
+        assertThat(kept.get(1).content()).hasSize(ChatMessage.MAX_ANSWER_LENGTH + 1).endsWith("\u2026");
+        assertThat(ChatMessage.MAX_MESSAGE_LENGTH).isEqualTo(20_000);
+    }
 }
