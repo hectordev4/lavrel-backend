@@ -1,7 +1,9 @@
 package com.lavrel.assistant.adapter.in.web;
 
 import com.lavrel.assistant.application.port.in.ManageWikiSourcesUseCase;
-import com.lavrel.assistant.domain.WikiSource;
+import com.lavrel.assistant.application.port.in.ManageWikiSourcesUseCase.GameWiki;
+import com.lavrel.assistant.domain.ReferenceWiki;
+import java.time.Instant;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
@@ -32,14 +34,23 @@ public class AdminAssistantController {
         this.wikis = wikis;
     }
 
+    /**
+     * PUT {"apiUrl": "https://darksouls.fandom.com/api.php"}. The backend asks the wiki for its name and license and
+     * only accepts CC BY-SA. A "license" field is no longer needed (ignored if sent).
+     */
     @PutMapping("/api/admin/assistant/wikis/{gameId}")
-    public WikiSource set(@PathVariable("gameId") @Positive long gameId, @Valid @RequestBody WikiRequest request) {
-        return wikis.set(gameId, request.apiUrl(), request.license());
+    public GameWikiResponse set(@PathVariable("gameId") @Positive long gameId,
+                                @Valid @RequestBody WikiRequest request) {
+        GameWiki result = wikis.approve(gameId, request.apiUrl());
+        return new GameWikiResponse(result.gameId(), WikiResponse.from(result.wiki(), List.of(result.gameId())),
+                result.guidesForgotten());
     }
 
+    /** Every approved wiki once, with the games that use it. */
     @GetMapping("/api/admin/assistant/wikis")
     public WikisResponse list() {
-        return new WikisResponse(wikis.list());
+        return new WikisResponse(wikis.list().stream()
+                .map(w -> WikiResponse.from(w.wiki(), w.gameIds())).toList());
     }
 
     @DeleteMapping("/api/admin/assistant/wikis/{gameId}")
@@ -53,10 +64,22 @@ public class AdminAssistantController {
         return new ForgottenResponse(wikis.forgetGuides(gameId));
     }
 
-    public record WikiRequest(@NotBlank @Size(max = 300) String apiUrl, @NotBlank @Size(max = 100) String license) {
+    public record WikiRequest(@NotBlank @Size(max = 300) String apiUrl, @Size(max = 100) String license) {
     }
 
-    public record WikisResponse(List<WikiSource> wikis) {
+    public record WikiResponse(long id, String apiUrl, String siteName, String license, String licenseUrl,
+                               Instant addedAt, List<Long> gameIds) {
+
+        static WikiResponse from(ReferenceWiki w, List<Long> gameIds) {
+            return new WikiResponse(w.id(), w.apiUrl(), w.siteName(), w.license(), w.licenseUrl(), w.addedAt(),
+                    gameIds);
+        }
+    }
+
+    public record GameWikiResponse(long gameId, WikiResponse wiki, int guidesForgotten) {
+    }
+
+    public record WikisResponse(List<WikiResponse> wikis) {
     }
 
     public record ForgottenResponse(int guidesForgotten) {

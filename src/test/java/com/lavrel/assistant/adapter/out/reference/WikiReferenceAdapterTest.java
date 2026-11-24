@@ -9,10 +9,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.lavrel.assistant.application.port.out.WikiClientPort;
-import com.lavrel.assistant.application.port.out.WikiSourceRepositoryPort;
+import com.lavrel.assistant.application.port.out.ReferenceWikiRepositoryPort;
 import com.lavrel.assistant.domain.AchievementContext;
 import com.lavrel.assistant.domain.Excerpt;
-import com.lavrel.assistant.domain.WikiSource;
+import com.lavrel.assistant.domain.ReferenceWiki;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -22,13 +22,13 @@ class WikiReferenceAdapterTest {
 
     private static final AchievementContext A = new AchievementContext(1L, "Hades", 10L, "Escape", "", false);
 
-    private final WikiSourceRepositoryPort sources = mock(WikiSourceRepositoryPort.class);
+    private final ReferenceWikiRepositoryPort sources = mock(ReferenceWikiRepositoryPort.class);
     private final WikiClientPort wiki = mock(WikiClientPort.class);
     private final WikiReferenceAdapter adapter = new WikiReferenceAdapter(sources, wiki);
 
     @Test
     void gamesWithoutAnApprovedWikiGetNoReference() {
-        when(sources.find(1L)).thenReturn(Optional.empty());
+        when(sources.findForGame(1L)).thenReturn(Optional.empty());
 
         assertThat(adapter.find(A)).isEmpty();
         verify(wiki, never()).search(anyString(), anyString(), anyInt());
@@ -37,7 +37,7 @@ class WikiReferenceAdapterTest {
     @Test
     void excerptsCarryTheirPageAndLicense() {
         String api = "https://hades.fandom.com/api.php";
-        when(sources.find(1L)).thenReturn(Optional.of(new WikiSource(1L, api, "CC BY-SA 3.0", Instant.EPOCH)));
+        when(sources.findForGame(1L)).thenReturn(Optional.of(wiki(api)));
         when(wiki.search(api, "Escape", WikiReferenceAdapter.PAGES)).thenReturn(List.of("Achievements"));
         when(wiki.wikitext(api, "Achievements")).thenReturn(Optional.of("'''Escape''': beat [[Hades]]."));
 
@@ -53,7 +53,7 @@ class WikiReferenceAdapterTest {
     @Test
     void aChatSearchesWithTheEnglishTermsAndCutsAroundTheirTellingWord() {
         String api = "https://darksouls.fandom.com/api.php";
-        when(sources.find(5L)).thenReturn(Optional.of(new WikiSource(5L, api, "CC BY-SA 3.0", Instant.EPOCH)));
+        when(sources.findForGame(5L)).thenReturn(Optional.of(wiki(api)));
         when(wiki.search(api, "Covetous Gold Serpent Ring location", WikiReferenceAdapter.PAGES))
                 .thenReturn(List.of("Covetous Gold Serpent Ring"));
         String page = "Intro. ".repeat(1000) + "Covetous Gold Serpent Ring is found in Irithyll Dungeon.";
@@ -76,11 +76,15 @@ class WikiReferenceAdapterTest {
 
     @Test
     void knowsWhetherAGameHasAnApprovedWiki() {
-        when(sources.find(1L)).thenReturn(Optional.empty());
-        when(sources.find(5L)).thenReturn(Optional.of(
-                new WikiSource(5L, "https://darksouls.fandom.com/api.php", "CC BY-SA 3.0", Instant.EPOCH)));
+        when(sources.findForGame(1L)).thenReturn(Optional.empty());
+        when(sources.findForGame(5L)).thenReturn(Optional.of(
+                wiki("https://darksouls.fandom.com/api.php")));
 
         assertThat(adapter.hasSource(1L)).isFalse();
         assertThat(adapter.hasSource(5L)).isTrue();
+    }
+
+    private static ReferenceWiki wiki(String apiUrl) {
+        return new ReferenceWiki(1L, apiUrl, "Wiki", "CC BY-SA 3.0", null, null, Instant.EPOCH);
     }
 }

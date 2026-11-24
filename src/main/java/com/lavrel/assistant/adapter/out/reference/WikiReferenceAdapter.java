@@ -2,11 +2,11 @@ package com.lavrel.assistant.adapter.out.reference;
 
 import com.lavrel.assistant.application.port.out.ReferencePort;
 import com.lavrel.assistant.application.port.out.WikiClientPort;
-import com.lavrel.assistant.application.port.out.WikiSourceRepositoryPort;
+import com.lavrel.assistant.application.port.out.ReferenceWikiRepositoryPort;
 import com.lavrel.assistant.domain.AchievementContext;
 import com.lavrel.assistant.domain.Excerpt;
 import com.lavrel.assistant.domain.SearchTerms;
-import com.lavrel.assistant.domain.WikiSource;
+import com.lavrel.assistant.domain.ReferenceWiki;
 import com.lavrel.assistant.domain.WikiText;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,27 +23,27 @@ public class WikiReferenceAdapter implements ReferencePort {
     static final int PAGES = 2;
     static final int CHARS_PER_PAGE = 3000;
 
-    private final WikiSourceRepositoryPort sources;
+    private final ReferenceWikiRepositoryPort wikis;
     private final WikiClientPort wiki;
 
-    public WikiReferenceAdapter(WikiSourceRepositoryPort sources, WikiClientPort wiki) {
-        this.sources = sources;
+    public WikiReferenceAdapter(ReferenceWikiRepositoryPort wikis, WikiClientPort wiki) {
+        this.wikis = wikis;
         this.wiki = wiki;
     }
 
     @Override
     public boolean hasSource(long gameId) {
-        return sources.find(gameId).isPresent();
+        return wikis.findForGame(gameId).isPresent();
     }
 
     /** Searches with the English terms and cuts each page around their most telling word. */
     @Override
     public List<Excerpt> findForGame(long gameId, String searchTerms) {
-        Optional<WikiSource> source = sources.find(gameId);
+        Optional<ReferenceWiki> source = wikis.findForGame(gameId);
         if (source.isEmpty()) {
             return List.of();
         }
-        WikiSource s = source.get();
+        ReferenceWiki s = source.get();
         String focus = SearchTerms.focusWord(searchTerms);
         List<Excerpt> excerpts = new ArrayList<>();
         for (String title : wiki.search(s.apiUrl(), searchTerms, PAGES)) {
@@ -58,11 +58,11 @@ public class WikiReferenceAdapter implements ReferencePort {
 
     @Override
     public List<Excerpt> find(AchievementContext achievement) {
-        Optional<WikiSource> source = sources.find(achievement.gameId());
+        Optional<ReferenceWiki> source = wikis.findForGame(achievement.gameId());
         if (source.isEmpty()) {
             return List.of();
         }
-        WikiSource s = source.get();
+        ReferenceWiki s = source.get();
         List<Excerpt> excerpts = new ArrayList<>();
         for (String title : wiki.search(s.apiUrl(), achievement.name(), PAGES)) {
             wiki.wikitext(s.apiUrl(), title)
